@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Go
+bin/
+/out/
+# If you have a vendor directory managed by go mod vendor
+vendor/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# IDES
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

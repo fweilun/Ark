@@ -1,4 +1,21 @@
-# 需要立即補充的組件
+# Ark API
+
+## Quick Start (Docker)
+
+Run the following command to start the API, Postgres, and Redis:
+
+```bash
+docker-compose up --build
+```
+
+The API will be available at `http://localhost:8080`.
+
+- **Postgres**: Exposed on port `5432`.
+- **Redis**: Exposed on port `6379`.
+- **Database Initialization**: The `migrations/0001_init.sql` script is automatically applied on the first run.
+
+## Components
+
 
 ## 1. 訂單管理器 (Order Manager Goroutine)
 

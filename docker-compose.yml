@@ -1,6 +1,23 @@
-# README: Local dev stack for Postgres + Redis + API
+# README: Local dev stack for Postgres + Redis + Ark API
+version: "3.9"
 
 services:
+  ark-api:
+    build: .
+    container_name: ark-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ARK_HTTP_ADDR=:8080
+      - ARK_DB_DSN=postgres://postgres:postgres@postgres:5432/ark?sslmode=disable
+      - ARK_REDIS_ADDR=redis:6379
+      - ARK_MATCH_TICK=3
+      - ARK_MATCH_RADIUS_KM=3.0
+    depends_on:
+      - postgres
+      - redis
+    restart: on-failure
+
   postgres:
     image: postgres:15
     container_name: ark-postgres
@@ -11,6 +28,7 @@ services:
       - "5432:5432"
     volumes:
       - ark_postgres_data:/var/lib/postgresql/data
+      - ./migrations/0001_init.sql:/docker-entrypoint-initdb.d/init.sql
 
   redis:
     image: redis:7
