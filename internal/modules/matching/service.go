@@ -38,7 +38,7 @@ func (s *Service) TryImmediateMatch(ctx context.Context, c Candidate) error {
 }
 
 func (s *Service) RunScheduler(ctx context.Context) {
-    tick := time.Duration(s.cfg.Matching.TickSeconds) * time.Second
+    tick := time.Duration(s.cfg.TickSeconds) * time.Second
     ticker := time.NewTicker(tick)
     defer ticker.Stop()
 

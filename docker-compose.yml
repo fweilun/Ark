@@ -1,0 +1,26 @@
+# README: Local dev stack for Postgres + Redis
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: ark-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ark_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: ark-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ark_redis_data:/data
+
+volumes:
+  ark_postgres_data:
+  ark_redis_data:
