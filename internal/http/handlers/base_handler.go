@@ -1,5 +1,5 @@
-// README: HTTP helper utilities for JSON and error mapping.
-package http
+// README: Base handler utilities (JSON helpers, error mapping).
+package handlers
 
 import (
     "encoding/json"
@@ -28,9 +28,7 @@ func writeOrderError(w http.ResponseWriter, err error) {
         writeError(w, http.StatusBadRequest, err.Error())
     case order.ErrNotFound:
         writeError(w, http.StatusNotFound, err.Error())
-    case order.ErrInvalidState, order.ErrActiveOrder:
-        writeError(w, http.StatusConflict, err.Error())
-    case order.ErrConflict:
+    case order.ErrInvalidState, order.ErrActiveOrder, order.ErrConflict:
         writeError(w, http.StatusConflict, err.Error())
     default:
         writeError(w, http.StatusInternalServerError, "internal error")
