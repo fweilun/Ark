@@ -43,6 +43,7 @@ type CreateCommand struct {
     DurationMin float64
     Weather     string
     CarType     string
+    Tolls       float64
 }
 
 type MatchCommand struct {
@@ -103,6 +104,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
             RequestTime: now,
             Weather:     cmd.Weather,
             CarType:     cmd.CarType,
+            Tolls:       cmd.Tolls,
         }
         
         // RideType might also be needed if we had different base rates per ride type, 

@@ -17,10 +17,13 @@ type PricingRequest struct {
     RequestTime time.Time
     Weather     string // "rain", "heavy_rain", "normal"
     CarType     string // "lucky_cat", "normal"
+    Tolls       float64
 }
 
 type PricingResult struct {
-    TotalAmount int64
-    Currency    string
-    Breakdown   map[string]int64
+    TotalAmount   int64
+    DriverShare   int64
+    PlatformShare int64
+    Currency      string
+    Breakdown     map[string]int64
 }

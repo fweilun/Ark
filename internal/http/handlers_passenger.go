@@ -20,6 +20,7 @@ type requestRideReq struct {
     DurationMin float64 `json:"duration_min"`
     Weather     string  `json:"weather"`  // "rain", "heavy_rain", "normal"
     CarType     string  `json:"car_type"` // "lucky_cat", "normal"
+    Tolls       float64 `json:"tolls"`
 }
 
 func (s *Server) HandleRequestRide(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +45,7 @@ func (s *Server) HandleRequestRide(w http.ResponseWriter, r *http.Request) {
         DurationMin: req.DurationMin,
         Weather:     req.Weather,
         CarType:     req.CarType,
+        Tolls:       req.Tolls,
 	})
 	if err != nil {
 		writeOrderError(w, err)

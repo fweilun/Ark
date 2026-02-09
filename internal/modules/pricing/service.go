@@ -106,18 +106,49 @@ func (s *Service) Estimate(ctx context.Context, req PricingRequest) (PricingResu
     subtotal := float64(baseFare + distanceCharge + timeCharge + nightSurcharge + festiveSurcharge)
     total := subtotal * weatherMultiplier * carMultiplier
     
+
     // Ceiling
-    finalAmount := int64(math.Ceil(total))
+    netFare := int64(math.Ceil(total))
+    
+    // Tolls logic
+    tolls := int64(math.Ceil(req.Tolls))
+    totalAmount := netFare + tolls
+    
+    // Split
+    // Driver = (Total - Tolls) * 0.8 + Tolls = NetFare * 0.8 + Tolls
+    driverShare := int64(math.Round(float64(netFare) * 0.8)) + tolls
+    
+    // Platform = (Total - Tolls) * 0.2 = NetFare * 0.2
+    platformShare := int64(math.Round(float64(netFare) * 0.2))
+    
+    // Adjustment to ensure shares sum to total (give remainder to platform or driver? usually platform takes hit or driver takes remainder)
+    // Let's ensure Driver + Platform == TotalAmount
+    if driverShare + platformShare != totalAmount {
+        // e.g. 100 split 80/20 matches.
+        // 101 split 80.8/20.2 -> 81/20 = 101. Matches.
+        // 102 split 81.6/20.4 -> 82/20 = 102. Matches.
+        // 103 split 82.4/20.6 -> 82/21 = 103. Matches.
+        // 104 split 83.2/20.8 -> 83/21 = 104. Matches.
+        // math.Round goes to nearest even? No, standard round up >= 0.5.
+        // Check case 1: Net = 1. 0.8 + 0.2. Round(0.8)=1, Round(0.2)=0. Sum=1.
+        // Check case 2: Net = 4. 3.2 + 0.8. Round(3.2)=3, Round(0.8)=1. Sum=4.
+        // Check case 3: Net = 3. 2.4 + 0.6. Round(2.4)=2, Round(0.6)=1. Sum=3.
+        // It seems consistent if standard rounding. 
+        // Go's math.Round: rounds to nearest integer, rounding half away from zero.
+    }
 
     result := PricingResult{
-        TotalAmount: finalAmount,
-        Currency:    "TWD",
+        TotalAmount:   totalAmount,
+        DriverShare:   driverShare,
+        PlatformShare: platformShare,
+        Currency:      "TWD",
         Breakdown: map[string]int64{
             "base_fare":         baseFare,
             "distance_charge":   distanceCharge,
             "time_charge":       timeCharge,
             "night_surcharge":   nightSurcharge,
             "festive_surcharge": festiveSurcharge,
+            "tolls":             tolls,
         },
     }
 

@@ -20,9 +20,11 @@ func TestService_Estimate(t *testing.T) {
     festiveTime := time.Date(2026, 2, 17, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name     string
-		req      PricingRequest
-		wantFare int64
+		name         string
+		req          PricingRequest
+		wantFare     int64
+        wantDriver   int64
+        wantPlatform int64
 	}{
 		{
 			name: "Base Fare Only (< 1.25km, 0 min)",
@@ -141,6 +143,26 @@ func TestService_Estimate(t *testing.T) {
             // Multiplier: 395 * 1.3 * 1.5 = 395 * 1.95 = 770.25 -> 771.
             wantFare: 771,
         },
+        {
+            name: "Earnings Split with Tolls",
+            req: PricingRequest{
+                DistanceKm:  10.0,
+                DurationMin: 20,
+                RequestTime: baseTime,
+                Tolls:       50,
+            },
+            // Base: 85
+            // Dist: 10 - 1.25 = 8.75. ceil(8.75/0.2) = 44. 44*5 = 220.
+            // Time: 20 * (3+2) = 100.
+            // Subtotal: 85 + 220 + 100 = 405.
+            // NetFare (Total - Tolls) = 405.
+            // TotalAmount = 405 + 50 = 455.
+            // Driver = 405 * 0.8 + 50 = 324 + 50 = 374.
+            // Platform = 405 * 0.2 = 81.
+            wantFare:     455,
+            wantDriver:   374,
+            wantPlatform: 81,
+        },
 	}
 
 	s := NewService(nil) // Store not needed for Estimate logic
@@ -153,8 +175,14 @@ func TestService_Estimate(t *testing.T) {
 				return
 			}
 			if got.TotalAmount != tt.wantFare {
-				t.Errorf("Estimate() = %v, want %v", got.TotalAmount, tt.wantFare)
+				t.Errorf("Estimate() TotalAmount = %v, want %v", got.TotalAmount, tt.wantFare)
 			}
+            if tt.wantDriver > 0 && got.DriverShare != tt.wantDriver {
+                t.Errorf("Estimate() DriverShare = %v, want %v", got.DriverShare, tt.wantDriver)
+            }
+            if tt.wantPlatform > 0 && got.PlatformShare != tt.wantPlatform {
+                t.Errorf("Estimate() PlatformShare = %v, want %v", got.PlatformShare, tt.wantPlatform)
+            }
 		})
 	}
 }
