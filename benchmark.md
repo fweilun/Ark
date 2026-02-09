@@ -53,7 +53,7 @@
 - **Matching: driver availability**
   測試重點：司機可設定可用狀態並加入候選池
 - **Matching: no nearby driver** (Manual)
-  測試重點：無附近司機時不應產生配對
+  測試重點：附近5公里無司機時不應產生配對
 - **Matching: ride type filter** (Manual)
   測試重點：車型/ride_type 濾條件生效
 - **Matching: remove from pool after match** (Manual)
