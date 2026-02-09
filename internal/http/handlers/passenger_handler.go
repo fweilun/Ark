@@ -46,7 +46,7 @@ func (h *PassengerHandler) RequestRide(w http.ResponseWriter, r *http.Request) {
         writeOrderError(w, err)
         return
     }
-    writeJSON(w, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusCreated})
+    writeJSON(w, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusRequested})
 }
 
 func (h *PassengerHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
