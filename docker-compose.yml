@@ -24,3 +24,6 @@ services:
 volumes:
   ark_postgres_data:
   ark_redis_data:
+
+# postgres啟動之後要把init.sql的內容跑一次，建立table
+# redis不需要額外設定

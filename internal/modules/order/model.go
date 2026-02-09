@@ -10,6 +10,7 @@ import (
 type Status string
 
 const (
+    StatusNone       Status = "none"
     StatusCreated    Status = "created"
     StatusMatched    Status = "matched"
     StatusAccepted   Status = "accepted"
@@ -46,4 +47,25 @@ type Event struct {
     ActorType  string
     ActorID    *types.ID
     CreatedAt  time.Time
+}
+
+// AllowedTransitions represents the order state flow (diagram) as code.
+var AllowedTransitions = map[Status][]Status{
+    StatusCreated:    {StatusMatched, StatusCancelled},
+    StatusMatched:    {StatusAccepted, StatusCancelled},
+    StatusAccepted:   {StatusInProgress},
+    StatusInProgress: {StatusCompleted},
+}
+
+func CanTransition(from, to Status) bool {
+    next, ok := AllowedTransitions[from]
+    if !ok {
+        return false
+    }
+    for _, s := range next {
+        if s == to {
+            return true
+        }
+    }
+    return false
 }
