@@ -1,6 +1,7 @@
 // README: Order service implements state transitions and persistence.
 package order
 
+
 import (
     "context"
     "crypto/rand"
@@ -9,11 +10,12 @@ import (
     "math"
     "time"
 
+    "ark/internal/modules/pricing"
     "ark/internal/types"
 )
 
 type Pricing interface {
-    Estimate(ctx context.Context, distanceKm float64, rideType string) (types.Money, error)
+    Estimate(ctx context.Context, req pricing.PricingRequest) (pricing.PricingResult, error)
 }
 
 type Service struct {
@@ -38,6 +40,9 @@ type CreateCommand struct {
     Pickup      types.Point
     Dropoff     types.Point
     RideType    string
+    DurationMin float64
+    Weather     string
+    CarType     string
 }
 
 type MatchCommand struct {
@@ -80,9 +85,36 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
     id := newID()
     now := time.Now()
     est := types.Money{Amount: 0, Currency: "TWD"}
+    
+    // Estimate Duration if 0?
+    // Let's assume passed or 0.
+    
     if s.pricing != nil {
-        if m, err := s.pricing.Estimate(ctx, distanceKm(cmd.Pickup, cmd.Dropoff), cmd.RideType); err == nil {
-            est = m
+        dist := distanceKm(cmd.Pickup, cmd.Dropoff)
+        // Simple fallback for duration if not provided: 30km/h => 0.5km/min
+        dur := cmd.DurationMin
+        if dur <= 0 {
+            dur = dist * 2 
+        }
+
+        req := pricing.PricingRequest{
+            DistanceKm:  dist,
+            DurationMin: dur,
+            RequestTime: now,
+            Weather:     cmd.Weather,
+            CarType:     cmd.CarType,
+        }
+        
+        // RideType might also be needed if we had different base rates per ride type, 
+        // but current logic uses CarType input. 
+        // We can map cmd.RideType to CarType if needed, or pass it.
+        // The PricingRequest has CarType. logic uses it.
+        
+        if res, err := s.pricing.Estimate(ctx, req); err == nil {
+            est = types.Money{
+                Amount:   res.TotalAmount,
+                Currency: res.Currency,
+            }
         }
     }
 

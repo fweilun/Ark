@@ -17,6 +17,9 @@ type requestRideReq struct {
 	DropoffLat  float64 `json:"dropoff_lat"`
 	DropoffLng  float64 `json:"dropoff_lng"`
 	RideType    string  `json:"ride_type"`
+    DurationMin float64 `json:"duration_min"`
+    Weather     string  `json:"weather"`  // "rain", "heavy_rain", "normal"
+    CarType     string  `json:"car_type"` // "lucky_cat", "normal"
 }
 
 func (s *Server) HandleRequestRide(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +41,9 @@ func (s *Server) HandleRequestRide(w http.ResponseWriter, r *http.Request) {
 		Pickup:      types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
 		Dropoff:     types.Point{Lat: req.DropoffLat, Lng: req.DropoffLng},
 		RideType:    req.RideType,
+        DurationMin: req.DurationMin,
+        Weather:     req.Weather,
+        CarType:     req.CarType,
 	})
 	if err != nil {
 		writeOrderError(w, err)

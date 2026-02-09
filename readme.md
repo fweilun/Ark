@@ -1,3 +1,37 @@
+# Ark Backend
+
+Here is the backend for the Ark project.
+
+## Quick Start (Docker)
+
+To run the entire stack (API + Postgres + Redis) locally using Docker:
+
+1.  **Start Services**:
+    ```bash
+    docker-compose up -d --build
+    ```
+
+2.  **Verify Running**:
+    ```bash
+    docker-compose ps
+    ```
+
+3.  **Check Logs**:
+    ```bash
+    docker-compose logs -f
+    ```
+
+4.  **Stop Services**:
+    ```bash
+    docker-compose down
+    ```
+
+The API will be available at `http://localhost:8080`.
+Postgres is exposed in `localhost:5432`.
+Redis is exposed in `localhost:6379`.
+
+---
+
 # 需要立即補充的組件
 
 ## 1. 訂單管理器 (Order Manager Goroutine)
