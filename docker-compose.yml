@@ -1,5 +1,4 @@
-# README: Local dev stack for Postgres + Redis
-version: "3.9"
+# README: Local dev stack for Postgres + Redis + API
 
 services:
   postgres:
@@ -20,6 +19,21 @@ services:
       - "6379:6379"
     volumes:
       - ark_redis_data:/data
+
+  ark-backend:
+    container_name: ark-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ARK_HTTP_ADDR: ":8080"
+      ARK_DB_DSN: "postgres://postgres:postgres@postgres:5432/ark?sslmode=disable"
+      ARK_REDIS_ADDR: "redis:6379"
+    depends_on:
+      - postgres
+      - redis
 
 volumes:
   ark_postgres_data:
