@@ -65,6 +65,15 @@ type CancelCommand struct {
     Reason    string
 }
 
+type DenyCommand struct {
+    OrderID  types.ID
+    DriverID types.ID
+}
+
+type PayCommand struct {
+    OrderID types.ID
+}
+
 func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, error) {
     if cmd.PassengerID == "" || cmd.RideType == "" {
         return "", ErrBadRequest
@@ -89,7 +98,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
     o := &Order{
         ID:            id,
         PassengerID:   cmd.PassengerID,
-        Status:        StatusCreated,
+        Status:        StatusRequested,
         StatusVersion: 0,
         Pickup:        cmd.Pickup,
         Dropoff:       cmd.Dropoff,
@@ -103,7 +112,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
     _ = s.store.AppendEvent(ctx, &Event{
         OrderID:    id,
         FromStatus: StatusNone,
-        ToStatus:   StatusCreated,
+        ToStatus:   StatusRequested,
         ActorType:  "passenger",
         ActorID:    &cmd.PassengerID,
         CreatedAt:  now,
@@ -116,10 +125,10 @@ func (s *Service) Match(ctx context.Context, cmd MatchCommand) error {
     if err != nil {
         return err
     }
-    if !CanTransition(o.Status, StatusMatched) {
+    if !CanTransition(o.Status, StatusDriverFound) {
         return ErrInvalidState
     }
-    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusMatched, o.StatusVersion, &cmd.DriverID)
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusDriverFound, o.StatusVersion, &cmd.DriverID)
     if err != nil {
         return err
     }
@@ -128,8 +137,8 @@ func (s *Service) Match(ctx context.Context, cmd MatchCommand) error {
     }
     _ = s.store.AppendEvent(ctx, &Event{
         OrderID:    o.ID,
-        FromStatus: StatusCreated,
-        ToStatus:   StatusMatched,
+        FromStatus: StatusRequested,
+        ToStatus:   StatusDriverFound,
         ActorType:  "system",
         ActorID:    nil,
         CreatedAt:  time.Now(),
@@ -142,10 +151,10 @@ func (s *Service) Accept(ctx context.Context, cmd AcceptCommand) error {
     if err != nil {
         return err
     }
-    if !CanTransition(o.Status, StatusAccepted) {
+    if !CanTransition(o.Status, StatusRideAccepted) {
         return ErrInvalidState
     }
-    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusAccepted, o.StatusVersion, &cmd.DriverID)
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusRideAccepted, o.StatusVersion, &cmd.DriverID)
     if err != nil {
         return err
     }
@@ -154,8 +163,8 @@ func (s *Service) Accept(ctx context.Context, cmd AcceptCommand) error {
     }
     _ = s.store.AppendEvent(ctx, &Event{
         OrderID:    o.ID,
-        FromStatus: StatusMatched,
-        ToStatus:   StatusAccepted,
+        FromStatus: StatusDriverFound,
+        ToStatus:   StatusRideAccepted,
         ActorType:  "driver",
         ActorID:    &cmd.DriverID,
         CreatedAt:  time.Now(),
@@ -168,10 +177,10 @@ func (s *Service) Start(ctx context.Context, cmd StartCommand) error {
     if err != nil {
         return err
     }
-    if !CanTransition(o.Status, StatusInProgress) {
+    if !CanTransition(o.Status, StatusTripStarted) {
         return ErrInvalidState
     }
-    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusInProgress, o.StatusVersion, o.DriverID)
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusTripStarted, o.StatusVersion, o.DriverID)
     if err != nil {
         return err
     }
@@ -180,8 +189,8 @@ func (s *Service) Start(ctx context.Context, cmd StartCommand) error {
     }
     _ = s.store.AppendEvent(ctx, &Event{
         OrderID:    o.ID,
-        FromStatus: StatusAccepted,
-        ToStatus:   StatusInProgress,
+        FromStatus: StatusRideAccepted,
+        ToStatus:   StatusTripStarted,
         ActorType:  "driver",
         ActorID:    o.DriverID,
         CreatedAt:  time.Now(),
@@ -194,10 +203,10 @@ func (s *Service) Complete(ctx context.Context, cmd CompleteCommand) error {
     if err != nil {
         return err
     }
-    if !CanTransition(o.Status, StatusCompleted) {
+    if !CanTransition(o.Status, StatusTripComplete) {
         return ErrInvalidState
     }
-    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusCompleted, o.StatusVersion, o.DriverID)
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusTripComplete, o.StatusVersion, o.DriverID)
     if err != nil {
         return err
     }
@@ -206,8 +215,8 @@ func (s *Service) Complete(ctx context.Context, cmd CompleteCommand) error {
     }
     _ = s.store.AppendEvent(ctx, &Event{
         OrderID:    o.ID,
-        FromStatus: StatusInProgress,
-        ToStatus:   StatusCompleted,
+        FromStatus: StatusTripStarted,
+        ToStatus:   StatusTripComplete,
         ActorType:  "driver",
         ActorID:    o.DriverID,
         CreatedAt:  time.Now(),
@@ -247,6 +256,58 @@ func (s *Service) Cancel(ctx context.Context, cmd CancelCommand) error {
 
 func (s *Service) Get(ctx context.Context, id types.ID) (*Order, error) {
     return s.store.Get(ctx, id)
+}
+
+func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
+    o, err := s.store.Get(ctx, cmd.OrderID)
+    if err != nil {
+        return err
+    }
+    if !CanTransition(o.Status, StatusRideDenied) {
+        return ErrInvalidState
+    }
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusRideDenied, o.StatusVersion, &cmd.DriverID)
+    if err != nil {
+        return err
+    }
+    if !ok {
+        return ErrConflict
+    }
+    _ = s.store.AppendEvent(ctx, &Event{
+        OrderID:    o.ID,
+        FromStatus: o.Status,
+        ToStatus:   StatusRideDenied,
+        ActorType:  "driver",
+        ActorID:    &cmd.DriverID,
+        CreatedAt:  time.Now(),
+    })
+    return nil
+}
+
+func (s *Service) Pay(ctx context.Context, cmd PayCommand) error {
+    o, err := s.store.Get(ctx, cmd.OrderID)
+    if err != nil {
+        return err
+    }
+    if !CanTransition(o.Status, StatusPayment) {
+        return ErrInvalidState
+    }
+    ok, err := s.store.UpdateStatus(ctx, o.ID, o.Status, StatusPayment, o.StatusVersion, o.DriverID)
+    if err != nil {
+        return err
+    }
+    if !ok {
+        return ErrConflict
+    }
+    _ = s.store.AppendEvent(ctx, &Event{
+        OrderID:    o.ID,
+        FromStatus: o.Status,
+        ToStatus:   StatusPayment,
+        ActorType:  "system",
+        ActorID:    nil,
+        CreatedAt:  time.Now(),
+    })
+    return nil
 }
 
 func (s *Service) RunTimeoutMonitor(ctx context.Context) {

@@ -1,0 +1,34 @@
+@baseUrl = http://localhost:8080
+
+### 1. 請求叫車 (Request Ride)
+# @name create_order
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+    "passenger_id": "p8",
+    "pickup_lat": 25.033,
+    "pickup_lng": 121.565,
+    "dropoff_lat": 25.0478,
+    "dropoff_lng": 121.5318,
+    "ride_type": "economy"
+}
+
+@order_id = ab56eb772ce68d0aa4d56518f220f2b7
+### 2. Driver Found (Match)
+POST {{baseUrl}}/api/orders/{{order_id}}/match?driver_id=d1
+
+### 3. Ride Accepted
+POST {{baseUrl}}/api/drivers/orders/{{order_id}}/accept?driver_id=d1
+
+### 4. Trip Started
+POST {{baseUrl}}/api/drivers/orders/{{order_id}}/start
+
+### 5. Trip Complete
+POST {{baseUrl}}/api/drivers/orders/{{order_id}}/complete
+
+### 6. Payment
+POST {{baseUrl}}/api/orders/{{order_id}}/pay
+
+### 7. 查詢訂單 (Get Order)
+GET {{baseUrl}}/api/orders/{{order_id}}

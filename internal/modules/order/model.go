@@ -11,12 +11,14 @@ type Status string
 
 const (
     StatusNone       Status = "none"
-    StatusCreated    Status = "created"
-    StatusMatched    Status = "matched"
-    StatusAccepted   Status = "accepted"
-    StatusInProgress Status = "in_progress"
-    StatusCompleted  Status = "completed"
+    StatusRequested  Status = "request_ride"
+    StatusDriverFound Status = "driver_found"
+    StatusRideAccepted Status = "ride_accepted"
+    StatusTripStarted  Status = "trip_started"
+    StatusTripComplete Status = "trip_complete"
+    StatusPayment      Status = "payment"
     StatusCancelled  Status = "cancelled"
+    StatusRideDenied Status = "ride_denied"
 )
 
 type Order struct {
@@ -51,10 +53,12 @@ type Event struct {
 
 // AllowedTransitions represents the order state flow (diagram) as code.
 var AllowedTransitions = map[Status][]Status{
-    StatusCreated:    {StatusMatched, StatusCancelled},
-    StatusMatched:    {StatusAccepted, StatusCancelled},
-    StatusAccepted:   {StatusInProgress},
-    StatusInProgress: {StatusCompleted},
+    StatusRequested:   {StatusDriverFound, StatusCancelled},
+    StatusDriverFound: {StatusRideAccepted, StatusRideDenied},
+    StatusRideAccepted:{StatusTripStarted},
+    StatusTripStarted: {StatusTripComplete},
+    StatusTripComplete:{StatusPayment},
+    StatusCancelled:   {StatusRideDenied},
 }
 
 func CanTransition(from, to Status) bool {

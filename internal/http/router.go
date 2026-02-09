@@ -22,12 +22,16 @@ func NewRouter(
     orderHandler := handlers.NewOrderHandler(orderService)
     mux.HandleFunc("POST /api/orders", orderHandler.Create)
     mux.HandleFunc("GET /api/orders/{id}", orderHandler.Get)
+    mux.HandleFunc("POST /api/orders/{id}/match", orderHandler.Match)
     mux.HandleFunc("POST /api/orders/{id}/cancel", orderHandler.Cancel)
+    mux.HandleFunc("POST /api/orders/{id}/pay", orderHandler.Pay)
 
     driverHandler := handlers.NewDriverHandler(orderService, matchingService)
     mux.HandleFunc("GET /api/drivers/orders", driverHandler.ListAvailable)
     mux.HandleFunc("POST /api/drivers/orders/{id}/accept", driverHandler.Accept)
     mux.HandleFunc("POST /api/drivers/orders/{id}/start", driverHandler.Start)
+    mux.HandleFunc("POST /api/drivers/orders/{id}/complete", driverHandler.Complete)
+    mux.HandleFunc("POST /api/drivers/orders/{id}/deny", driverHandler.Deny)
 
     locationHandler := handlers.NewLocationHandler(locationService)
     mux.HandleFunc("PUT /api/drivers/{id}/location", locationHandler.Update)
