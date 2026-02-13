@@ -2,35 +2,48 @@
 package handlers
 
 import (
-    "encoding/json"
-    "net/http"
+	"net/http"
 
-    "ark/internal/modules/order"
+	"github.com/gin-gonic/gin"
+
+	"ark/internal/modules/order"
 )
 
 type errorResponse struct {
-    Error string `json:"error"`
+	Error string `json:"error"`
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(status)
-    _ = json.NewEncoder(w).Encode(v)
+// isValidID ensures IDs are hex and 32 chars (matches current ID generator).
+func isValidID(v string) bool {
+	if len(v) > 32 {
+		return false
+	}
+	for _, c := range v {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
-func writeError(w http.ResponseWriter, status int, msg string) {
-    writeJSON(w, status, errorResponse{Error: msg})
+func writeJSON(c *gin.Context, status int, v any) {
+	c.JSON(status, v)
 }
 
-func writeOrderError(w http.ResponseWriter, err error) {
-    switch err {
-    case order.ErrBadRequest:
-        writeError(w, http.StatusBadRequest, err.Error())
-    case order.ErrNotFound:
-        writeError(w, http.StatusNotFound, err.Error())
-    case order.ErrInvalidState, order.ErrActiveOrder, order.ErrConflict:
-        writeError(w, http.StatusConflict, err.Error())
-    default:
-        writeError(w, http.StatusInternalServerError, "internal error")
-    }
+func writeError(c *gin.Context, status int, msg string) {
+	writeJSON(c, status, errorResponse{Error: msg})
+}
+
+func writeOrderError(c *gin.Context, err error) {
+	switch err {
+	case order.ErrBadRequest:
+		writeError(c, http.StatusBadRequest, err.Error())
+	case order.ErrNotFound:
+		writeError(c, http.StatusNotFound, err.Error())
+	case order.ErrInvalidState, order.ErrActiveOrder, order.ErrConflict:
+		writeError(c, http.StatusConflict, err.Error())
+	default:
+		writeError(c, http.StatusInternalServerError, "internal error")
+	}
 }
