@@ -10,15 +10,15 @@ import (
 type Status string
 
 const (
-    StatusNone       Status = "none"
-    StatusRequested  Status = "request_ride"
-    StatusDriverFound Status = "driver_found"
-    StatusRideAccepted Status = "ride_accepted"
-    StatusTripStarted  Status = "trip_started"
-    StatusTripComplete Status = "trip_complete"
-    StatusPayment      Status = "payment"
-    StatusCancelled  Status = "cancelled"
-    StatusRideDenied Status = "ride_denied"
+    StatusNone        Status = "none"
+    StatusWaiting     Status = "waiting"     // user is waiting for a driver
+    StatusApproaching Status = "approaching" // driver accepted and is heading to pickup
+    StatusArrived     Status = "arrived"     // driver arrived at pickup
+    StatusDriving     Status = "driving"     // ride in progress
+    StatusPayment     Status = "payment"     // ride completed, awaiting payment/rating
+    StatusComplete    Status = "complete"    // payment/rating complete
+    StatusCancelled   Status = "cancelled"   // order cancelled
+    StatusDenied      Status = "denied"      // driver denied the order
 )
 
 type Order struct {
@@ -53,12 +53,11 @@ type Event struct {
 
 // AllowedTransitions represents the order state flow (diagram) as code.
 var AllowedTransitions = map[Status][]Status{
-    StatusRequested:   {StatusDriverFound, StatusCancelled},
-    StatusDriverFound: {StatusRideAccepted, StatusRideDenied},
-    StatusRideAccepted:{StatusTripStarted},
-    StatusTripStarted: {StatusTripComplete},
-    StatusTripComplete:{StatusPayment},
-    StatusCancelled:   {StatusRideDenied},
+    StatusWaiting:     {StatusApproaching, StatusCancelled, StatusDenied},
+    StatusApproaching: {StatusArrived, StatusCancelled},
+    StatusArrived:     {StatusDriving, StatusCancelled},
+    StatusDriving:     {StatusPayment, StatusCancelled},
+    StatusPayment:     {StatusComplete},
 }
 
 func CanTransition(from, to Status) bool {

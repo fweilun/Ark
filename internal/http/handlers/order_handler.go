@@ -51,7 +51,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusRequested})
+	writeJSON(c, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusWaiting})
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {
@@ -70,6 +70,32 @@ func (h *OrderHandler) Get(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusOK, map[string]any{"order_id": o.ID, "status": o.Status})
+}
+
+func (h *OrderHandler) Status(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	resp := map[string]any{
+		"order_id":       o.ID,
+		"status":         o.Status,
+		"status_version": o.StatusVersion,
+	}
+	if o.DriverID != nil {
+		resp["driver_id"] = *o.DriverID
+	}
+	writeJSON(c, http.StatusOK, resp)
 }
 
 func (h *OrderHandler) Cancel(c *gin.Context) {
@@ -94,7 +120,7 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusCancelled})
 }
 
-// Match is a temporary MVP endpoint to move order from created -> matched.
+// Match is a temporary MVP endpoint to move order from waiting -> approaching.
 func (h *OrderHandler) Match(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -122,10 +148,124 @@ func (h *OrderHandler) Match(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDriverFound})
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusApproaching})
 }
 
-// Pay is a temporary MVP endpoint to move order from trip_complete -> payment.
+func (h *OrderHandler) Accept(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	driverID := c.Query("driver_id")
+	if driverID == "" {
+		writeError(c, http.StatusBadRequest, "missing driver_id")
+		return
+	}
+	if !isValidID(driverID) {
+		writeError(c, http.StatusBadRequest, "invalid driver_id")
+		return
+	}
+	err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
+		OrderID:  types.ID(id),
+		DriverID: types.ID(driverID),
+	})
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusApproaching})
+}
+
+func (h *OrderHandler) Deny(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	driverID := c.Query("driver_id")
+	if driverID == "" {
+		writeError(c, http.StatusBadRequest, "missing driver_id")
+		return
+	}
+	if !isValidID(driverID) {
+		writeError(c, http.StatusBadRequest, "invalid driver_id")
+		return
+	}
+	err := h.order.Deny(c.Request.Context(), order.DenyCommand{
+		OrderID:  types.ID(id),
+		DriverID: types.ID(driverID),
+	})
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDenied})
+}
+
+func (h *OrderHandler) Arrive(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	err := h.order.Arrive(c.Request.Context(), order.ArriveCommand{OrderID: types.ID(id)})
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusArrived})
+}
+
+func (h *OrderHandler) Meet(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	err := h.order.Meet(c.Request.Context(), order.MeetCommand{OrderID: types.ID(id)})
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDriving})
+}
+
+func (h *OrderHandler) Complete(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing order id")
+		return
+	}
+	if !isValidID(id) {
+		writeError(c, http.StatusBadRequest, "invalid order id")
+		return
+	}
+	err := h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusPayment})
+}
+
+// Pay is a temporary MVP endpoint to move order from payment -> complete.
 func (h *OrderHandler) Pay(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -141,5 +281,5 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusPayment})
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusComplete})
 }
