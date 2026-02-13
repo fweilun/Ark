@@ -153,15 +153,18 @@ Driver Denied:
 Driver workflow:
 ```mermaid
 flowchart TB
-  Start["Driver: Poll Available Orders <br>(GET /api/orders/{driver_id}/)"] --> Decide{Accept?}
-  Decide -- Yes --> Accept["POST /api/orders/{id}/accept"]
-  Decide -- No --> PollAgain["Continue Polling"]
+    Idle[StatusWaiting <br> 1. /api/drivers/driver_id/orders] -->|receive order| Accept{Accept？ <br> 2. /api/orders/:id/accept <br> 3. /api/orders/:id/denied}
+    Accept -- Yes --> Going[StatusApproaching]
+    Accept -- No --> Denied[StatusDenied <br> 3. /api/orders/:id/denied]
+    Denied --> Idle
 
-  Accept --> PollRide["Poll Ride Status <br>(GET /api/orders/{id}/status)"]
-  PollRide -->|Status: IN_PROGRESS| OnRide["Show: On Ride"]
-  PollRide -->|Status: COMPLETED| Done["Show: Completed/Rating"]
-  PollRide -->|Status: CANCELLED| Cancelled["Show: Cancelled"]
-  OnRide --> PollRide
-  PollAgain --> Start
+    Going --> |4. /api/orders/:id/arrived| Arrived[StatusArrived]
+    Arrived --> |5. /api/orders/:id/meet| Driving[StatusDriving]
+    Driving --> |6. /api/orders/:id/complete| Complete[StatusPayment + StatusComplete]
+    Complete --> Idle
+
+    Arrived -->|driver/ user cancelled| Cancelled
+    Going --> Cancelled[StatusCancelled <br> /api/orders/:id/cancel]
+    Cancelled --> Idle
+
 ```
-
