@@ -3,6 +3,19 @@
 ## Struct Order
 
 ```go
+type Status string
+
+const (
+    StatusNone    Status = "none"
+    StatusWaiting Status = "waiting" // user is waiting
+    StatusApproaching Status = "approaching" // the driver is heading to the user
+    StatusArrived Status = "arrived" // the driver is arrived
+    StatusDriving Status = "driving" // the driver is heading the user
+    StatusPayment Status = "payment"
+    StatusComplete Status = "complete" // the order has been completed
+    StatusCancelled Status = "cancelled" // the order has been cancelled
+)
+
 type Order struct {
     ID            types.ID
     PassengerID   types.ID
@@ -60,16 +73,17 @@ flowchart TB
 
   Start["User: Request Ride <br>(1. POST /api/orders)"] --> Poll["User: Polling Status <br> (2. GET /api/orders/{id}/status)"]
   
-  Poll -->|Status: WAITING| CheckTimeout{Timeout?}
+  Poll -->|Status: StatusWaiting| CheckTimeout{Timeout?}
   CheckTimeout -- No --> Poll
   CheckTimeout -- Yes --> Expired["Show: No Driver Found <br> 4. POST /api/orders/:id/cancel"]
   
-  Poll -->|Status: MATCHED| ShowDriver["Update Map (Show Driver info) <br> 3. call map api"]
+  Poll -->|Status: StatusApproaching| ShowDriver["Update Map (Show Driver info) <br> 3. call map api"]
   ShowDriver --> Poll
-  Poll -->|Status: IN_PROGRESS| OnBoard["Show: On Ride"]
-  Poll -->|Status: COMPLETED| Payment["Show: Payment/Rating"]
+  Poll -->|Status: StatusArrived| OnBoard["Show: On Ride"]
+  Poll -->|Status: StatusDriving| OnBoard["Show: On Ride"]
+  Poll -->|Status: StatusComplete| Payment["Show: Payment/Rating"]
 
-  Poll -->|Status: CANCELLED| Canceled["End: User Cancelled <br> 4. POST /api/orders/:id/cancel"]
+  Poll -->|Status: StatusCancelled| Canceled["End: User Cancelled <br> 4. POST /api/orders/:id/cancel"]
 
   class Start,Poll,ShowDriver,OnBoard action;
   class CheckTimeout status;
@@ -94,7 +108,7 @@ Expected: Success, Fail
 * Check status
 ```http
 POST {{baseUrl}}/api/orders/{{order_id}}/status
-Expected: WAITING | MATCHED | IN_PROGRESS | COMPLETED | CANCELLED
+Expected: All Status
 ```
 
 * User cancel order
@@ -128,3 +142,26 @@ Driver Found:
 Driver Accept:
 Driver Denied:
 ```
+
+
+
+
+
+
+
+
+Driver workflow:
+```mermaid
+flowchart TB
+  Start["Driver: Poll Available Orders <br>(GET /api/orders/{driver_id}/)"] --> Decide{Accept?}
+  Decide -- Yes --> Accept["POST /api/orders/{id}/accept"]
+  Decide -- No --> PollAgain["Continue Polling"]
+
+  Accept --> PollRide["Poll Ride Status <br>(GET /api/orders/{id}/status)"]
+  PollRide -->|Status: IN_PROGRESS| OnRide["Show: On Ride"]
+  PollRide -->|Status: COMPLETED| Done["Show: Completed/Rating"]
+  PollRide -->|Status: CANCELLED| Cancelled["Show: Cancelled"]
+  OnRide --> PollRide
+  PollAgain --> Start
+```
+
