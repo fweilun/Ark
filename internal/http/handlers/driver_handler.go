@@ -44,7 +44,7 @@ func (h *DriverHandler) Accept(c *gin.Context) {
         writeOrderError(c, err)
         return
     }
-    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusRideAccepted})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusApproaching})
 }
 
 func (h *DriverHandler) Start(c *gin.Context) {
@@ -58,7 +58,7 @@ func (h *DriverHandler) Start(c *gin.Context) {
         writeOrderError(c, err)
         return
     }
-    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusTripStarted})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDriving})
 }
 
 func (h *DriverHandler) Complete(c *gin.Context) {
@@ -72,7 +72,7 @@ func (h *DriverHandler) Complete(c *gin.Context) {
         writeOrderError(c, err)
         return
     }
-    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusTripComplete})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusPayment})
 }
 
 func (h *DriverHandler) Deny(c *gin.Context) {
@@ -94,5 +94,5 @@ func (h *DriverHandler) Deny(c *gin.Context) {
         writeOrderError(c, err)
         return
     }
-    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusRideDenied})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDenied})
 }

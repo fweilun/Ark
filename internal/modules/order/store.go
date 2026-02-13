@@ -108,10 +108,10 @@ func (s *Store) UpdateStatus(ctx context.Context, id types.ID, from, to Status, 
         SET status = $1,
             status_version = status_version + 1,
             driver_id = COALESCE($2, driver_id),
-            matched_at = CASE WHEN $1 = 'driver_found' THEN NOW() ELSE matched_at END,
-            accepted_at = CASE WHEN $1 = 'ride_accepted' THEN NOW() ELSE accepted_at END,
-            started_at = CASE WHEN $1 = 'trip_started' THEN NOW() ELSE started_at END,
-            completed_at = CASE WHEN $1 = 'trip_complete' THEN NOW() ELSE completed_at END,
+            matched_at = CASE WHEN $1 = 'approaching' THEN NOW() ELSE matched_at END,
+            accepted_at = CASE WHEN $1 = 'approaching' THEN NOW() ELSE accepted_at END,
+            started_at = CASE WHEN $1 = 'driving' THEN NOW() ELSE started_at END,
+            completed_at = CASE WHEN $1 IN ('payment','complete') THEN NOW() ELSE completed_at END,
             cancelled_at = CASE WHEN $1 = 'cancelled' THEN NOW() ELSE cancelled_at END
         WHERE id = $3 AND status = $4 AND status_version = $5`,
 		string(to),
@@ -146,9 +146,9 @@ func (s *Store) HasActiveByPassenger(ctx context.Context, passengerID types.ID) 
         SELECT EXISTS (
             SELECT 1 FROM orders
             WHERE passenger_id = $1
-              AND status IN ('request_ride','driver_found','ride_accepted','trip_started','trip_complete')
+              AND status IN ('waiting','approaching','arrived','driving','payment')
         )`, string(passengerID),
-	)
+    )
 	var exists bool
 	if err := row.Scan(&exists); err != nil {
 		return false, err
