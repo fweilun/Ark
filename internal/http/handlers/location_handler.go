@@ -4,6 +4,8 @@ package handlers
 import (
     "net/http"
 
+    "github.com/gin-gonic/gin"
+
     "ark/internal/modules/location"
     "ark/internal/types"
 )
@@ -16,13 +18,13 @@ func NewLocationHandler(svc *location.Service) *LocationHandler {
     return &LocationHandler{location: svc}
 }
 
-func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
-    id := r.PathValue("id")
+func (h *LocationHandler) Update(c *gin.Context) {
+    id := c.Param("id")
     if id == "" {
-        writeError(w, http.StatusBadRequest, "missing id")
+        writeError(c, http.StatusBadRequest, "missing id")
         return
     }
     // For MVP, no body parsing yet
-    _ = h.location.Update(r.Context(), location.Update{UserID: types.ID(id), UserType: "driver"})
-    writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+    _ = h.location.Update(c.Request.Context(), location.Update{UserID: types.ID(id), UserType: "driver"})
+    writeJSON(c, http.StatusOK, map[string]any{"status": "ok"})
 }

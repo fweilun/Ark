@@ -4,57 +4,95 @@ package handlers
 import (
     "net/http"
 
+    "github.com/gin-gonic/gin"
+
     "ark/internal/modules/matching"
     "ark/internal/modules/order"
     "ark/internal/types"
 )
 
 type DriverHandler struct {
-    order    *order.Service
-    matching *matching.Service
+	order    *order.Service
+	matching *matching.Service
 }
 
 func NewDriverHandler(orderSvc *order.Service, matchingSvc *matching.Service) *DriverHandler {
-    return &DriverHandler{order: orderSvc, matching: matchingSvc}
+	return &DriverHandler{order: orderSvc, matching: matchingSvc}
 }
 
-func (h *DriverHandler) ListAvailable(w http.ResponseWriter, r *http.Request) {
+func (h *DriverHandler) ListAvailable(c *gin.Context) {
     // Matching not implemented; return empty list for MVP
-    writeJSON(w, http.StatusOK, map[string]any{"orders": []any{}})
+    writeJSON(c, http.StatusOK, map[string]any{"orders": []any{}})
 }
 
-func (h *DriverHandler) Accept(w http.ResponseWriter, r *http.Request) {
-    id := r.PathValue("id")
+func (h *DriverHandler) Accept(c *gin.Context) {
+    id := c.Param("id")
     if id == "" {
-        writeError(w, http.StatusBadRequest, "missing order id")
+        writeError(c, http.StatusBadRequest, "missing order id")
         return
     }
-    driverID := r.URL.Query().Get("driver_id")
+    driverID := c.Query("driver_id")
     if driverID == "" {
-        writeError(w, http.StatusBadRequest, "missing driver_id")
+        writeError(c, http.StatusBadRequest, "missing driver_id")
         return
     }
-    err := h.order.Accept(r.Context(), order.AcceptCommand{
+    err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
         OrderID:  types.ID(id),
         DriverID: types.ID(driverID),
     })
     if err != nil {
-        writeOrderError(w, err)
+        writeOrderError(c, err)
         return
     }
-    writeJSON(w, http.StatusOK, map[string]any{"status": order.StatusAccepted})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusRideAccepted})
 }
 
-func (h *DriverHandler) Start(w http.ResponseWriter, r *http.Request) {
-    id := r.PathValue("id")
+func (h *DriverHandler) Start(c *gin.Context) {
+    id := c.Param("id")
     if id == "" {
-        writeError(w, http.StatusBadRequest, "missing order id")
+        writeError(c, http.StatusBadRequest, "missing order id")
         return
     }
-    err := h.order.Start(r.Context(), order.StartCommand{OrderID: types.ID(id)})
+    err := h.order.Start(c.Request.Context(), order.StartCommand{OrderID: types.ID(id)})
     if err != nil {
-        writeOrderError(w, err)
+        writeOrderError(c, err)
         return
     }
-    writeJSON(w, http.StatusOK, map[string]any{"status": order.StatusInProgress})
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusTripStarted})
+}
+
+func (h *DriverHandler) Complete(c *gin.Context) {
+    id := c.Param("id")
+    if id == "" {
+        writeError(c, http.StatusBadRequest, "missing order id")
+        return
+    }
+    err := h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
+    if err != nil {
+        writeOrderError(c, err)
+        return
+    }
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusTripComplete})
+}
+
+func (h *DriverHandler) Deny(c *gin.Context) {
+    id := c.Param("id")
+    if id == "" {
+        writeError(c, http.StatusBadRequest, "missing order id")
+        return
+    }
+    driverID := c.Query("driver_id")
+    if driverID == "" {
+        writeError(c, http.StatusBadRequest, "missing driver_id")
+        return
+    }
+    err := h.order.Deny(c.Request.Context(), order.DenyCommand{
+        OrderID:  types.ID(id),
+        DriverID: types.ID(driverID),
+    })
+    if err != nil {
+        writeOrderError(c, err)
+        return
+    }
+    writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusRideDenied})
 }

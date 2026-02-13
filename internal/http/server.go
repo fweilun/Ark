@@ -1,35 +1,31 @@
-// README: HTTP server wiring (entry for http package).
+// README: HTTP server wiring (Gin engine factory).
 package http
 
 import (
-    "net/http"
+	"net/http"
 
-    "ark/internal/http/handlers"
-    "ark/internal/modules/location"
-    "ark/internal/modules/matching"
-    "ark/internal/modules/order"
-    "ark/internal/modules/pricing"
+	"ark/internal/modules/location"
+	"ark/internal/modules/matching"
+	"ark/internal/modules/order"
+	"ark/internal/modules/pricing"
 )
 
 type ServerDeps struct {
-    Order    *order.Service
-    Matching *matching.Service
-    Location *location.Service
-    Pricing  *pricing.Service
+	Order    *order.Service
+	Matching *matching.Service
+	Location *location.Service
+	Pricing  *pricing.Service
 }
 
 type Server struct {
-    Handler http.Handler
+	Engine http.Handler
 }
 
 func NewServer(deps ServerDeps) *Server {
-    h := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing)
-    return &Server{Handler: h}
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing)
+	return &Server{Engine: engine}
 }
 
 func (s *Server) Routes() http.Handler {
-    return s.Handler
+	return s.Engine
 }
-
-// Keep this exported for router package usage
-var _ = handlers.NewOrderHandler
