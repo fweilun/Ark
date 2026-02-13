@@ -1,10 +1,12 @@
 // README: Auth middleware (stub for MVP).
 package middleware
 
-import "net/http"
+import "github.com/gin-gonic/gin"
 
-func Auth(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        next.ServeHTTP(w, r)
-    })
+// [TODO] Implement real auth with JWT or similar in the future. For MVP, this is a no-op.
+
+func Auth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+	}
 }
