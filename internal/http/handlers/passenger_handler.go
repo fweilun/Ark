@@ -37,6 +37,10 @@ func (h *PassengerHandler) RequestRide(c *gin.Context) {
         writeError(c, http.StatusBadRequest, "missing fields")
         return
     }
+    if !isValidID(req.PassengerID) {
+        writeError(c, http.StatusBadRequest, "invalid passenger_id")
+        return
+    }
     id, err := h.order.Create(c.Request.Context(), order.CreateCommand{
         PassengerID: types.ID(req.PassengerID),
         Pickup:      types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
@@ -54,6 +58,10 @@ func (h *PassengerHandler) GetOrder(c *gin.Context) {
     id := c.Param("id")
     if id == "" {
         writeError(c, http.StatusBadRequest, "missing order id")
+        return
+    }
+    if !isValidID(id) {
+        writeError(c, http.StatusBadRequest, "invalid order id")
         return
     }
     o, err := h.order.Get(c.Request.Context(), types.ID(id))
