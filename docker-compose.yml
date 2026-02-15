@@ -34,7 +34,7 @@ services:
     image: redis:7
     container_name: ark-redis
     ports:
-      - "6379:6379"
+      - "6300:6379"
     volumes:
       - ark_redis_data:/data
 

@@ -200,7 +200,7 @@ func orderMonitor() {
 ```go
 // 儲存即時匹配資訊
 redisClient := redis.NewClient(&redis.Options{
-    Addr: "localhost:6379",
+    Addr: "localhost:6300",
 })
 
 // Key 設計

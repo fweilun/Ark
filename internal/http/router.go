@@ -41,12 +41,13 @@ func NewRouter(
 	r.POST("/api/orders/:id/deny", orderHandler.Deny)
 	r.POST("/api/orders/:id/arrived", orderHandler.Arrive)
 	r.POST("/api/orders/:id/meet", orderHandler.Meet)
-	r.POST("/api/orders/:id/cancel", orderHandler.Cancel)
+
 	r.POST("/api/orders/:id/pay", orderHandler.Pay)
 
 	// location udpate
 	locationHandler := handlers.NewLocationHandler(locationService)
-	r.PUT("/api/drivers/:id/location", locationHandler.Update)
+	r.POST("/api/location/driver", locationHandler.UpdateDriver)
+	r.POST("/api/location/passenger", locationHandler.UpdatePassenger)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")

@@ -1,2 +1,8 @@
 .local-dev
 .github
+playground/
+.claude/
+docker-compose.test.yml
+docker-compose.yml
+README.md
+.gitignore
