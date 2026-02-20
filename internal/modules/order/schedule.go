@@ -11,8 +11,6 @@ import (
 var (
 	// ErrScheduleConflict is returned when a scheduled order cannot be claimed (already taken).
 	ErrScheduleConflict = ErrConflict
-	// ErrCancelDeadlinePassed is returned when a passenger tries to cancel after the deadline.
-	ErrCancelDeadlinePassed = ErrBadRequest
 )
 
 const (
