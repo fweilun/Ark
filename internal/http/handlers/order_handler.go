@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/middleware"
 	"ark/internal/modules/order"
 	"ark/internal/types"
 )
@@ -42,6 +43,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid passenger_id")
 		return
 	}
+	// Ensure the authenticated user is the passenger placing the order.
+	if middleware.CallerUID(c) != req.PassengerID {
+		writeError(c, http.StatusForbidden, "forbidden: passenger_id does not match authenticated user")
+		return
+	}
 	id, err := h.order.Create(c.Request.Context(), order.CreateCommand{
 		PassengerID: types.ID(req.PassengerID),
 		Pickup:      types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
@@ -70,6 +76,11 @@ func (h *OrderHandler) Get(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
+	// Only the passenger or the assigned driver may read the order.
+	if !isPartyOnOrder(c, o) {
+		writeError(c, http.StatusForbidden, "forbidden")
+		return
+	}
 	writeJSON(c, http.StatusOK, map[string]any{"order_id": o.ID, "status": o.Status})
 }
 
@@ -86,6 +97,11 @@ func (h *OrderHandler) Status(c *gin.Context) {
 	o, err := h.order.Get(c.Request.Context(), types.ID(id))
 	if err != nil {
 		writeOrderError(c, err)
+		return
+	}
+	// Only the passenger or the assigned driver may poll status.
+	if !isPartyOnOrder(c, o) {
+		writeError(c, http.StatusForbidden, "forbidden")
 		return
 	}
 	resp := map[string]any{
@@ -110,16 +126,22 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 		return
 	}
 
-	// Check before cancellation whether this is a scheduled order past its free-cancel deadline.
-	// The order is still cancelled (MVP), but we inform the client so they can show the appropriate message.
-	lateCancel := false
-	if o, err := h.order.Get(c.Request.Context(), types.ID(id)); err == nil {
-		if o.OrderType == "scheduled" && o.CancelDeadlineAt != nil && time.Now().After(*o.CancelDeadlineAt) {
-			lateCancel = true
-		}
+	// Fetch order to verify ownership before cancellation.
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	// Only the passenger on the order may cancel via this endpoint.
+	if middleware.CallerUID(c) != string(o.PassengerID) {
+		writeError(c, http.StatusForbidden, "forbidden: only the passenger may cancel this order")
+		return
 	}
 
-	err := h.order.Cancel(c.Request.Context(), order.CancelCommand{
+	// Check before cancellation whether this is a scheduled order past its free-cancel deadline.
+	lateCancel := o.OrderType == "scheduled" && o.CancelDeadlineAt != nil && time.Now().After(*o.CancelDeadlineAt)
+
+	err = h.order.Cancel(c.Request.Context(), order.CancelCommand{
 		OrderID:   types.ID(id),
 		ActorType: "passenger",
 		Reason:    "user_cancel",
@@ -149,6 +171,15 @@ func (h *OrderHandler) Match(c *gin.Context) {
 	}
 	if !isValidID(driverID) {
 		writeError(c, http.StatusBadRequest, "invalid driver_id")
+		return
+	}
+	// Only drivers may trigger matching.
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	if middleware.CallerUID(c) != driverID {
+		writeError(c, http.StatusForbidden, "forbidden: driver_id does not match authenticated user")
 		return
 	}
 	err := h.order.Match(c.Request.Context(), order.MatchCommand{
@@ -181,6 +212,15 @@ func (h *OrderHandler) Accept(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid driver_id")
 		return
 	}
+	// Only drivers may accept orders; the "role: driver" claim is required.
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	if middleware.CallerUID(c) != driverID {
+		writeError(c, http.StatusForbidden, "forbidden: driver_id does not match authenticated user")
+		return
+	}
 	err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(driverID),
@@ -211,6 +251,14 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid driver_id")
 		return
 	}
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	if middleware.CallerUID(c) != driverID {
+		writeError(c, http.StatusForbidden, "forbidden: driver_id does not match authenticated user")
+		return
+	}
 	err := h.order.Deny(c.Request.Context(), order.DenyCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(driverID),
@@ -219,7 +267,6 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	// [CHECK]
 	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusWaiting})
 }
 
@@ -233,7 +280,21 @@ func (h *OrderHandler) Arrive(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	err := h.order.Arrive(c.Request.Context(), order.ArriveCommand{OrderID: types.ID(id)})
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	// Verify the caller is the driver assigned to this order.
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	if o.DriverID == nil || middleware.CallerUID(c) != string(*o.DriverID) {
+		writeError(c, http.StatusForbidden, "forbidden: not the assigned driver")
+		return
+	}
+	err = h.order.Arrive(c.Request.Context(), order.ArriveCommand{OrderID: types.ID(id)})
 	if err != nil {
 		writeOrderError(c, err)
 		return
@@ -251,7 +312,20 @@ func (h *OrderHandler) Meet(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	err := h.order.Meet(c.Request.Context(), order.MeetCommand{OrderID: types.ID(id)})
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	if o.DriverID == nil || middleware.CallerUID(c) != string(*o.DriverID) {
+		writeError(c, http.StatusForbidden, "forbidden: not the assigned driver")
+		return
+	}
+	err = h.order.Meet(c.Request.Context(), order.MeetCommand{OrderID: types.ID(id)})
 	if err != nil {
 		writeOrderError(c, err)
 		return
@@ -269,7 +343,20 @@ func (h *OrderHandler) Complete(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	err := h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	if o.DriverID == nil || middleware.CallerUID(c) != string(*o.DriverID) {
+		writeError(c, http.StatusForbidden, "forbidden: not the assigned driver")
+		return
+	}
+	err = h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
 	if err != nil {
 		writeOrderError(c, err)
 		return
@@ -288,7 +375,17 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	err := h.order.Pay(c.Request.Context(), order.PayCommand{OrderID: types.ID(id)})
+	// Only the passenger may trigger payment.
+	o, err := h.order.Get(c.Request.Context(), types.ID(id))
+	if err != nil {
+		writeOrderError(c, err)
+		return
+	}
+	if middleware.CallerUID(c) != string(o.PassengerID) {
+		writeError(c, http.StatusForbidden, "forbidden: only the passenger may pay")
+		return
+	}
+	err = h.order.Pay(c.Request.Context(), order.PayCommand{OrderID: types.ID(id)})
 	if err != nil {
 		writeOrderError(c, err)
 		return
@@ -322,6 +419,11 @@ func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	}
 	if !isValidID(req.PassengerID) {
 		writeError(c, http.StatusBadRequest, "invalid passenger_id")
+		return
+	}
+	// Ensure the authenticated user is the passenger placing the order.
+	if middleware.CallerUID(c) != req.PassengerID {
+		writeError(c, http.StatusForbidden, "forbidden: passenger_id does not match authenticated user")
 		return
 	}
 	if req.ScheduleWindowMins <= 0 {
@@ -359,6 +461,11 @@ func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid passenger_id")
 		return
 	}
+	// Only the passenger may list their own orders.
+	if middleware.CallerUID(c) != passengerID {
+		writeError(c, http.StatusForbidden, "forbidden: passenger_id does not match authenticated user")
+		return
+	}
 	orders, err := h.order.ListScheduledByPassenger(c.Request.Context(), types.ID(passengerID))
 	if err != nil {
 		writeOrderError(c, err)
@@ -369,6 +476,11 @@ func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 
 // ListAvailableScheduled handles GET /api/orders/scheduled/available?from=...&to=...
 func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
+	// Only drivers may browse available scheduled orders.
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 	if fromStr == "" || toStr == "" {
@@ -421,6 +533,14 @@ func (h *OrderHandler) Claim(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid driver_id")
 		return
 	}
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	if middleware.CallerUID(c) != req.DriverID {
+		writeError(c, http.StatusForbidden, "forbidden: driver_id does not match authenticated user")
+		return
+	}
 	err := h.order.ClaimScheduled(c.Request.Context(), order.ClaimScheduledCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(req.DriverID),
@@ -457,6 +577,14 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid driver_id")
 		return
 	}
+	if middleware.CallerRole(c) != "driver" {
+		writeError(c, http.StatusForbidden, "forbidden: driver role required")
+		return
+	}
+	if middleware.CallerUID(c) != req.DriverID {
+		writeError(c, http.StatusForbidden, "forbidden: driver_id does not match authenticated user")
+		return
+	}
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(req.DriverID),
@@ -467,4 +595,16 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusScheduled})
+}
+
+// isPartyOnOrder returns true when the authenticated caller is the passenger or the assigned driver on the order.
+func isPartyOnOrder(c *gin.Context, o *order.Order) bool {
+	uid := middleware.CallerUID(c)
+	if uid == string(o.PassengerID) {
+		return true
+	}
+	if o.DriverID != nil && uid == string(*o.DriverID) {
+		return true
+	}
+	return false
 }

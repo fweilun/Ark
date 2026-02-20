@@ -8,26 +8,22 @@ import (
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
+	"ark/internal/infra"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 )
 
-// [TODO] We might want to check if the user have the permission to access the order
-// [TODO] Satisfy minimum authentication principle.
 func NewRouter(
 	orderService *order.Service,
 	matchingService *matching.Service,
 	locationService *location.Service,
 	pricingService *pricing.Service,
+	verifier infra.TokenVerifier,
 ) *gin.Engine {
-	// r := gin.New()
-	// r.Use(middleware.Recovery())
-	// r.Use(middleware.Logging())
-
 	r := gin.Default()
-	r.Use(middleware.Auth())
+	r.Use(middleware.Auth(verifier))
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	// passenger — instant order

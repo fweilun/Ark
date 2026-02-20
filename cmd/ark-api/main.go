@@ -27,6 +27,14 @@ func main() {
     ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
     defer stop()
 
+    if cfg.Firebase.ProjectID == "" {
+        log.Fatal("ARK_FIREBASE_PROJECT_ID is required")
+    }
+    verifier, err := infra.NewFirebaseVerifier(ctx, cfg.Firebase.ProjectID, cfg.Firebase.CredentialsFile)
+    if err != nil {
+        log.Fatalf("firebase init: %v", err)
+    }
+
     dbPool, err := infra.NewDB(ctx, cfg.DB.DSN)
     if err != nil {
         log.Fatal(err)
@@ -51,6 +59,7 @@ func main() {
         Matching: matchingSvc,
         Location: locationSvc,
         Pricing:  pricingSvc,
+        Verifier: verifier,
     })
 
     server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
