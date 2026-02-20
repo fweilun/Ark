@@ -22,6 +22,10 @@ type Config struct {
         Addr string
     }
     Matching MatchingConfig
+    Firebase struct {
+        ProjectID       string
+        CredentialsFile string
+    }
 }
 
 func Load() (Config, error) {
@@ -31,6 +35,8 @@ func Load() (Config, error) {
     cfg.Redis.Addr = envOrDefault("ARK_REDIS_ADDR", "localhost:6379")
     cfg.Matching.TickSeconds = envOrDefaultInt("ARK_MATCH_TICK", 3)
     cfg.Matching.RadiusKm = envOrDefaultFloat("ARK_MATCH_RADIUS_KM", 3.0)
+    cfg.Firebase.ProjectID = envOrDefault("ARK_FIREBASE_PROJECT_ID", "")
+    cfg.Firebase.CredentialsFile = envOrDefault("ARK_FIREBASE_CREDENTIALS_FILE", "")
     return cfg, nil
 }
 
