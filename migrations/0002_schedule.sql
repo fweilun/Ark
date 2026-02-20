@@ -11,6 +11,9 @@ ALTER TABLE orders
 -- Drivers query available scheduled orders by time window.
 CREATE INDEX IF NOT EXISTS idx_orders_scheduled_open
     ON orders (status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_orders_scheduled_available
+    ON orders (scheduled_at)
+    WHERE status = 'scheduled';
 
 -- Passengers and drivers query their own order history.
 CREATE INDEX IF NOT EXISTS idx_orders_passenger_time
