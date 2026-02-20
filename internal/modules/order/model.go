@@ -46,6 +46,13 @@ type Order struct {
 	CompletedAt   *time.Time
 	CancelledAt   *time.Time
 	CancelReason  *string
+	// Scheduled-order fields (zero/nil for instant orders).
+	OrderType          string
+	ScheduledAt        *time.Time
+	ScheduleWindowMins *int
+	CancelDeadlineAt   *time.Time
+	IncentiveBonus     int64
+	AssignedAt         *time.Time
 }
 
 type Event struct {
@@ -62,14 +69,15 @@ type Event struct {
 // Actor-specific semantics (passenger/driver/system) are enforced by the service layer;
 // this map defines which state pairs are structurally valid.
 var AllowedTransitions = map[Status][]Status{
-	// Scheduled order enters matching pool; can be cancelled before activation or expire.
-	StatusScheduled: {StatusWaiting, StatusCancelled, StatusExpired},
+	// Scheduled order enters matching pool; can be claimed by a driver, cancelled before activation, or expire.
+	StatusScheduled: {StatusWaiting, StatusAssigned, StatusCancelled, StatusExpired},
 	// Awaiting a driver: realtime → Approaching on accept, scheduled → Assigned on accept,
 	// self-loop on matching retry, → Denied on driver decline, → Cancelled on passenger cancel,
 	// → Expired on matching timeout.
 	StatusWaiting: {StatusWaiting, StatusAssigned, StatusApproaching, StatusCancelled, StatusDenied, StatusExpired},
-	// Driver accepted a scheduled order but has not departed; can start trip (→ Approaching) or cancel.
-	StatusAssigned: {StatusApproaching, StatusCancelled},
+	// Driver accepted a scheduled order but has not departed; can start trip (→ Approaching), cancel,
+	// or be re-opened by driver cancel (→ Scheduled).
+	StatusAssigned: {StatusApproaching, StatusCancelled, StatusScheduled},
 	// Driver en route: arrives at pickup (→ Arrived), passenger or driver cancels (→ Cancelled),
 	// or driver cancels for re-matching (→ Waiting).
 	StatusApproaching: {StatusArrived, StatusCancelled, StatusWaiting},

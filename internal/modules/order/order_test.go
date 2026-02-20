@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -46,6 +47,10 @@ func TestCanTransition(t *testing.T) {
 		{StatusScheduled, StatusWaiting, true},
 		{StatusScheduled, StatusCancelled, true},
 		{StatusScheduled, StatusExpired, true},
+		{StatusScheduled, StatusAssigned, true},   // driver claims scheduled order
+		{StatusAssigned, StatusScheduled, true},   // driver cancels → re-open
+		{StatusAssigned, StatusApproaching, true}, // driver departs
+		{StatusAssigned, StatusCancelled, true},   // passenger cancels assigned order
 		// invalid: terminal states have no outgoing transitions
 		{StatusComplete, StatusWaiting, false},
 		{StatusCancelled, StatusWaiting, false},
@@ -387,6 +392,232 @@ func TestOrderFlowDenyRematch(t *testing.T) {
 	assertStatus(t, svc, orderID, StatusApproaching)
 }
 
+func TestScheduledOrderFlowHappyPath(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	orderID := mustCreateScheduledOrder(t, svc, "p_sched_happy")
+	assertStatus(t, svc, orderID, StatusScheduled)
+
+	// Check fields were persisted.
+	o, err := svc.Get(ctx, orderID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.OrderType != "scheduled" {
+		t.Fatalf("expected order_type=scheduled, got %s", o.OrderType)
+	}
+	if o.ScheduledAt == nil {
+		t.Fatal("expected scheduled_at to be set")
+	}
+	if o.CancelDeadlineAt == nil {
+		t.Fatal("expected cancel_deadline_at to be set")
+	}
+	if o.ScheduleWindowMins == nil || *o.ScheduleWindowMins != 30 {
+		t.Fatalf("expected schedule_window_mins=30, got %v", o.ScheduleWindowMins)
+	}
+
+	// Driver claims the order.
+	if err := svc.ClaimScheduled(ctx, ClaimScheduledCommand{OrderID: orderID, DriverID: "d_sched_1"}); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusAssigned)
+
+	// Driver departs (Assigned → Approaching).
+	if err := svc.applyTransition(ctx, orderID, transitionParams{to: StatusApproaching, actorType: "driver"}); err != nil {
+		t.Fatalf("approaching: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+}
+
+func TestScheduledOrderValidation(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	// scheduled_at must be at least 30 minutes in the future.
+	_, err := svc.CreateScheduled(ctx, CreateScheduledCommand{
+		PassengerID:        "p_sched_val",
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:           "economy",
+		ScheduledAt:        time.Now().Add(10 * time.Minute), // too soon
+		ScheduleWindowMins: 30,
+	})
+	if err != ErrBadRequest {
+		t.Fatalf("expected ErrBadRequest for near-future scheduled_at, got %v", err)
+	}
+
+	// schedule_window_mins must be positive.
+	_, err = svc.CreateScheduled(ctx, CreateScheduledCommand{
+		PassengerID:        "p_sched_val2",
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:           "economy",
+		ScheduledAt:        time.Now().Add(2 * time.Hour),
+		ScheduleWindowMins: 0,
+	})
+	if err != ErrBadRequest {
+		t.Fatalf("expected ErrBadRequest for zero schedule_window_mins, got %v", err)
+	}
+
+	// Missing ride_type.
+	_, err = svc.CreateScheduled(ctx, CreateScheduledCommand{
+		PassengerID:        "p_sched_val3",
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		ScheduledAt:        time.Now().Add(2 * time.Hour),
+		ScheduleWindowMins: 30,
+	})
+	if err != ErrBadRequest {
+		t.Fatalf("expected ErrBadRequest for missing ride_type, got %v", err)
+	}
+}
+
+func TestScheduledOrderActiveConflict(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	// Creating a scheduled order blocks a second one for the same passenger.
+	passengerID := types.ID("p_sched_conflict")
+	if _, err := svc.CreateScheduled(ctx, CreateScheduledCommand{
+		PassengerID:        passengerID,
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:           "economy",
+		ScheduledAt:        time.Now().Add(2 * time.Hour),
+		ScheduleWindowMins: 30,
+	}); err != nil {
+		t.Fatalf("first scheduled order: %v", err)
+	}
+	_, err := svc.CreateScheduled(ctx, CreateScheduledCommand{
+		PassengerID:        passengerID,
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:           "economy",
+		ScheduledAt:        time.Now().Add(3 * time.Hour),
+		ScheduleWindowMins: 30,
+	})
+	if err != ErrActiveOrder {
+		t.Fatalf("expected ErrActiveOrder for duplicate scheduled order, got %v", err)
+	}
+
+	// Instant order is also blocked while scheduled order is active.
+	_, err = svc.Create(ctx, CreateCommand{
+		PassengerID: passengerID,
+		Pickup:      types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:     types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:    "economy",
+	})
+	if err != ErrActiveOrder {
+		t.Fatalf("expected ErrActiveOrder for instant order while scheduled is active, got %v", err)
+	}
+}
+
+func TestScheduledOrderDriverCancel(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	orderID := mustCreateScheduledOrder(t, svc, "p_sched_dcancel")
+	assertStatus(t, svc, orderID, StatusScheduled)
+
+	// Driver claims.
+	if err := svc.ClaimScheduled(ctx, ClaimScheduledCommand{OrderID: orderID, DriverID: "d_sched_cancel"}); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusAssigned)
+
+	// Driver cancels → order re-opens as 'scheduled'.
+	if err := svc.CancelScheduledByDriver(ctx, DriverCancelScheduledCommand{
+		OrderID:  orderID,
+		DriverID: "d_sched_cancel",
+	}); err != nil {
+		t.Fatalf("driver cancel: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusScheduled)
+
+	o, err := svc.Get(ctx, orderID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.DriverID != nil {
+		t.Fatalf("expected driver_id to be cleared after re-open, got %s", *o.DriverID)
+	}
+	if o.IncentiveBonus == 0 {
+		t.Fatal("expected incentive_bonus to be increased after driver cancel")
+	}
+
+	// A new driver can now claim the re-opened order.
+	if err := svc.ClaimScheduled(ctx, ClaimScheduledCommand{OrderID: orderID, DriverID: "d_sched_new"}); err != nil {
+		t.Fatalf("claim by new driver: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusAssigned)
+}
+
+func TestScheduledOrderPassengerCancel(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	orderID := mustCreateScheduledOrder(t, svc, "p_sched_pcancel")
+	assertStatus(t, svc, orderID, StatusScheduled)
+
+	if err := svc.CancelScheduledByPassenger(ctx, CancelScheduledCommand{
+		OrderID: orderID,
+		Reason:  "user_cancel",
+	}); err != nil {
+		t.Fatalf("passenger cancel: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusCancelled)
+}
+
+func TestConcurrentClaimScheduled(t *testing.T) {
+	ctx := context.Background()
+	store := setupTestStore(t)
+	svc := NewService(store, nil)
+
+	orderID := mustCreateScheduledOrder(t, svc, "p_sched_concurrent")
+
+	const attempts = 6
+	var wg sync.WaitGroup
+	errs := make(chan error, attempts)
+
+	for i := 0; i < attempts; i++ {
+		driverID := types.ID(fmt.Sprintf("d_sched_%d", i))
+		wg.Add(1)
+		go func(did types.ID) {
+			defer wg.Done()
+			errs <- svc.ClaimScheduled(ctx, ClaimScheduledCommand{OrderID: orderID, DriverID: did})
+		}(driverID)
+	}
+
+	wg.Wait()
+	close(errs)
+
+	success := 0
+	for err := range errs {
+		if err == nil {
+			success++
+			continue
+		}
+		if err != ErrConflict && err != ErrInvalidState {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if success != 1 {
+		t.Fatalf("expected exactly 1 successful claim, got %d", success)
+	}
+
+	o, err := svc.Get(ctx, orderID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if o.Status != StatusAssigned {
+		t.Fatalf("expected status assigned, got %s", o.Status)
+	}
+	if o.DriverID == nil {
+		t.Fatal("expected driver_id to be set after claim")
+	}
+}
+
 func mustCreateOrder(t *testing.T, svc *Service, passengerID types.ID) types.ID {
 	t.Helper()
 	id, err := svc.Create(context.Background(), CreateCommand{
@@ -397,6 +628,22 @@ func mustCreateOrder(t *testing.T, svc *Service, passengerID types.ID) types.ID 
 	})
 	if err != nil {
 		t.Fatalf("create order: %v", err)
+	}
+	return id
+}
+
+func mustCreateScheduledOrder(t *testing.T, svc *Service, passengerID types.ID) types.ID {
+	t.Helper()
+	id, err := svc.CreateScheduled(context.Background(), CreateScheduledCommand{
+		PassengerID:        passengerID,
+		Pickup:             types.Point{Lat: 25.033, Lng: 121.565},
+		Dropoff:            types.Point{Lat: 25.0478, Lng: 121.5318},
+		RideType:           "economy",
+		ScheduledAt:        time.Now().Add(2 * time.Hour),
+		ScheduleWindowMins: 30,
+	})
+	if err != nil {
+		t.Fatalf("create scheduled order: %v", err)
 	}
 	return id
 }
@@ -443,16 +690,17 @@ func applyMigration(ctx context.Context, db *pgxpool.Pool) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(root, "migrations", "0001_init.sql")
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	cleaned := stripSQLComments(string(content))
-	for _, stmt := range splitSQL(cleaned) {
-		if _, err := db.Exec(ctx, stmt); err != nil {
+	for _, name := range []string{"0001_init.sql", "0002_schedule.sql"} {
+		path := filepath.Join(root, "migrations", name)
+		content, err := os.ReadFile(path)
+		if err != nil {
 			return err
+		}
+		cleaned := stripSQLComments(string(content))
+		for _, stmt := range splitSQL(cleaned) {
+			if _, err := db.Exec(ctx, stmt); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

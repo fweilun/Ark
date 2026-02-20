@@ -72,28 +72,29 @@ type Order struct {
 
 ```go
 // internal/http/router.go
-r.POST("/api/orders/scheduled", scheduleHandler.Create)
-r.GET("/api/orders/scheduled", scheduleHandler.ListByPassenger)
-r.GET("/api/orders/scheduled/available", scheduleHandler.ListAvailable)
-r.POST("/api/orders/:id/claim", scheduleHandler.Claim)
-r.POST("/api/orders/:id/driver-cancel", scheduleHandler.DriverCancel)
+r.POST("/api/orders/scheduled", orderHandler.CreateScheduled)
+r.GET("/api/orders/scheduled", orderHandler.ListScheduledByPassenger)
+r.GET("/api/orders/scheduled/available", orderHandler.ListAvailableScheduled)
+r.POST("/api/orders/:id/claim", orderHandler.Claim)
+r.POST("/api/orders/:id/driver-cancel", orderHandler.DriverCancel)
 // 乘客取消仍用既有: POST /api/orders/:id/cancel
 ```
 
 建議 request/response（精簡）：
 1. `POST /api/orders/scheduled`
-   - body: `passenger_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, ride_type, scheduled_at, schedule_window_mins`
+   - body: `passenger_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, ride_type, scheduled_at (RFC3339), schedule_window_mins`
    - resp: `order_id, status=scheduled`
-2. `GET /api/orders/scheduled`
-   - resp: `[{order_id, status, scheduled_at, driver_id?}]`
-3. `GET /api/orders/scheduled/available?from=...&to=...`
-   - resp: `[{order_id, scheduled_at, pickup, ride_type, incentive_bonus}]`
+   - 驗證：`scheduled_at` 必須至少 30 分鐘後；`schedule_window_mins` 必須為正數；乘客不能有其他 active 訂單。
+2. `GET /api/orders/scheduled?passenger_id=...`
+   - resp: `{orders: [{order_id, status, scheduled_at, driver_id?, incentive_bonus, ...}]}`
+3. `GET /api/orders/scheduled/available?from=RFC3339&to=RFC3339`
+   - resp: `{orders: [{order_id, scheduled_at, pickup, ride_type, incentive_bonus}]}`
 4. `POST /api/orders/:id/claim`
-   - body: `driver_id`
+   - body: `{"driver_id": "..."}`
    - resp: `status=assigned`
 5. `POST /api/orders/:id/driver-cancel`
-   - body: `driver_id, reason`
-   - resp: `status=scheduled`
+   - body: `{"driver_id": "...", "reason": "..."}`
+   - resp: `status=scheduled` (order re-opened with higher incentive_bonus)
 
 ## 4. Service functions（名稱 + 內容概況）
 可放在 `internal/modules/order/schedule.go`

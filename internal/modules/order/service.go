@@ -175,6 +175,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
 		Dropoff:       cmd.Dropoff,
 		RideType:      cmd.RideType,
 		EstimatedFee:  est,
+		OrderType:     "instant",
 		CreatedAt:     now,
 	}
 	if err := s.store.Create(ctx, o); err != nil {
