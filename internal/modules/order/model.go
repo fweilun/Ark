@@ -22,11 +22,14 @@ const (
 	StatusCancelled   Status = "cancelled"
 	StatusDenied      Status = "denied"
 	StatusExpired     Status = "expired"
-
-	// Docs aliases from docs/orderflow.md.
-	StatusAwaitingDriver  Status = StatusWaiting
-	StatusAcceptedWaiting Status = StatusAssigned
 )
+
+// type OrderType string
+
+// const (
+// 	Scheduled OrderType = "scheduled"
+// 	Instant   OrderType = "instant"
+// )
 
 type Order struct {
 	ID            types.ID
@@ -46,6 +49,14 @@ type Order struct {
 	CompletedAt   *time.Time
 	CancelledAt   *time.Time
 	CancelReason  *string
+	// Scheduled-order fields (zero/nil for instant orders).
+	OrderType          string
+	ScheduledAt        *time.Time
+	ScheduleWindowMins *int
+	CancelDeadlineAt   *time.Time
+	IncentiveBonus     int64
+	AssignedAt         *time.Time
+	history            []Event
 }
 
 type Event struct {
@@ -61,15 +72,17 @@ type Event struct {
 // AllowedTransitions represents the order state flow as code (see docs/orderflow.md mermaid diagram).
 // Actor-specific semantics (passenger/driver/system) are enforced by the service layer;
 // this map defines which state pairs are structurally valid.
+// TODO: (specific status) ex. Payment fail,
 var AllowedTransitions = map[Status][]Status{
-	// Scheduled order enters matching pool; can be cancelled before activation or expire.
-	StatusScheduled: {StatusWaiting, StatusCancelled, StatusExpired},
+	// Scheduled order is assigned, cancelled. We obmit the waiting, expired for now since the schedule order is important.
+	StatusScheduled: {StatusAssigned, StatusCancelled},
 	// Awaiting a driver: realtime → Approaching on accept, scheduled → Assigned on accept,
 	// self-loop on matching retry, → Denied on driver decline, → Cancelled on passenger cancel,
 	// → Expired on matching timeout.
-	StatusWaiting: {StatusWaiting, StatusAssigned, StatusApproaching, StatusCancelled, StatusDenied, StatusExpired},
-	// Driver accepted a scheduled order but has not departed; can start trip (→ Approaching) or cancel.
-	StatusAssigned: {StatusApproaching, StatusCancelled},
+	StatusWaiting: {StatusWaiting, StatusApproaching, StatusCancelled, StatusExpired},
+	// Driver accepted a scheduled order but has not departed; can start trip (→ Approaching), cancel,
+	// or be re-opened by driver cancel (→ Scheduled).
+	StatusAssigned: {StatusApproaching, StatusCancelled, StatusScheduled},
 	// Driver en route: arrives at pickup (→ Arrived), passenger or driver cancels (→ Cancelled),
 	// or driver cancels for re-matching (→ Waiting).
 	StatusApproaching: {StatusArrived, StatusCancelled, StatusWaiting},
@@ -79,8 +92,6 @@ var AllowedTransitions = map[Status][]Status{
 	StatusDriving: {StatusPayment, StatusCancelled},
 	// Awaiting payment confirmation.
 	StatusPayment: {StatusComplete},
-	// Driver declined; system may retry matching (→ Waiting).
-	StatusDenied: {StatusWaiting},
 }
 
 var allowedTransitionSet = buildTransitionSet(AllowedTransitions)

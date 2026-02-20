@@ -33,17 +33,18 @@ var (
 	ErrBadRequest   = errors.New("bad request")
 )
 
-// TODO(schedule): Add scheduled-order commands and service methods.
-// - CreateScheduled, ListScheduledByPassenger, ListAvailableScheduled
-// - ClaimScheduled, CancelScheduledByPassenger, CancelScheduledByDriver
-// - RunScheduleIncentiveTicker, RunScheduleExpireTicker
-// Ensure state transitions are enforced for scheduled vs realtime flows.
-
 type CreateCommand struct {
 	PassengerID types.ID
 	Pickup      types.Point
 	Dropoff     types.Point
 	RideType    string
+}
+
+// DepartCommand is used by a driver to depart for the pickup after claiming a scheduled order
+// (StatusAssigned → StatusApproaching).
+type DepartCommand struct {
+	OrderID  types.ID
+	DriverID types.ID
 }
 
 type MatchCommand struct {
@@ -175,6 +176,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
 		Dropoff:       cmd.Dropoff,
 		RideType:      cmd.RideType,
 		EstimatedFee:  est,
+		OrderType:     "instant",
 		CreatedAt:     now,
 	}
 	if err := s.store.Create(ctx, o); err != nil {
@@ -200,6 +202,16 @@ func (s *Service) Match(ctx context.Context, cmd MatchCommand) error {
 }
 
 func (s *Service) Accept(ctx context.Context, cmd AcceptCommand) error {
+	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
+		to:        StatusApproaching,
+		driverID:  &cmd.DriverID,
+		actorType: "driver",
+	})
+}
+
+// Depart moves a claimed scheduled order from StatusAssigned to StatusApproaching
+// when the driver departs for the pickup location.
+func (s *Service) Depart(ctx context.Context, cmd DepartCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusApproaching,
 		driverID:  &cmd.DriverID,
@@ -245,7 +257,7 @@ func (s *Service) Get(ctx context.Context, id types.ID) (*Order, error) {
 
 func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
-		to:        StatusDenied,
+		to:        StatusWaiting,
 		driverID:  &cmd.DriverID,
 		actorType: "driver",
 	})
