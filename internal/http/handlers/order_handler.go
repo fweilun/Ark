@@ -109,6 +109,16 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
+
+	// Check before cancellation whether this is a scheduled order past its free-cancel deadline.
+	// The order is still cancelled (MVP), but we inform the client so they can show the appropriate message.
+	lateCancel := false
+	if o, err := h.order.Get(c.Request.Context(), types.ID(id)); err == nil {
+		if o.OrderType == "scheduled" && o.CancelDeadlineAt != nil && time.Now().After(*o.CancelDeadlineAt) {
+			lateCancel = true
+		}
+	}
+
 	err := h.order.Cancel(c.Request.Context(), order.CancelCommand{
 		OrderID:   types.ID(id),
 		ActorType: "passenger",
@@ -118,7 +128,7 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusCancelled})
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusCancelled, "late_cancel": lateCancel})
 }
 
 // Match is a temporary MVP endpoint to move order from waiting -> approaching.
@@ -449,6 +459,7 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(req.DriverID),
+		Reason:   req.Reason,
 	})
 	if err != nil {
 		writeOrderError(c, err)

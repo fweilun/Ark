@@ -46,6 +46,13 @@ type CreateCommand struct {
 	RideType    string
 }
 
+// DepartCommand is used by a driver to depart for the pickup after claiming a scheduled order
+// (StatusAssigned → StatusApproaching).
+type DepartCommand struct {
+	OrderID  types.ID
+	DriverID types.ID
+}
+
 type MatchCommand struct {
 	OrderID   types.ID
 	DriverID  types.ID
@@ -201,6 +208,16 @@ func (s *Service) Match(ctx context.Context, cmd MatchCommand) error {
 }
 
 func (s *Service) Accept(ctx context.Context, cmd AcceptCommand) error {
+	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
+		to:        StatusApproaching,
+		driverID:  &cmd.DriverID,
+		actorType: "driver",
+	})
+}
+
+// Depart moves a claimed scheduled order from StatusAssigned to StatusApproaching
+// when the driver departs for the pickup location.
+func (s *Service) Depart(ctx context.Context, cmd DepartCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusApproaching,
 		driverID:  &cmd.DriverID,

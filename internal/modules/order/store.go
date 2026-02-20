@@ -269,6 +269,8 @@ func (s *Store) ListScheduledByPassenger(ctx context.Context, passengerID types.
 }
 
 // ListAvailableScheduled returns open (status='scheduled') orders within the given time window.
+// driver_id is included in the SELECT for consistency with scanOrderRows; it will be NULL
+// for unclaimed scheduled orders.
 func (s *Store) ListAvailableScheduled(ctx context.Context, from, to time.Time) ([]*Order, error) {
 	rows, err := s.db.Query(ctx, `
         SELECT id, passenger_id, driver_id, status, status_version,
@@ -330,7 +332,9 @@ func (s *Store) ReopenScheduled(ctx context.Context, orderID types.ID, expectVer
 }
 
 // BumpIncentiveBonusForApproaching increases incentive_bonus for scheduled orders
-// whose scheduled_at is within the next schedule_window_mins minutes and are still unclaimed.
+// that are still unclaimed but are now within their claiming window
+// (i.e. NOW() >= scheduled_at - schedule_window_mins, equivalently scheduled_at <= NOW() + window).
+// The upper bound `scheduled_at > NOW()` ensures we stop bumping once the ride time has passed.
 func (s *Store) BumpIncentiveBonusForApproaching(ctx context.Context, bump int64) error {
 	_, err := s.db.Exec(ctx, `
         UPDATE orders
@@ -353,10 +357,10 @@ func (s *Store) ExpireOverdueScheduled(ctx context.Context) error {
                 status_version = status_version + 1
             WHERE status = 'scheduled'
               AND scheduled_at + (schedule_window_mins * INTERVAL '1 minute') < NOW()
-            RETURNING id, status_version
+            RETURNING id
         )
-        INSERT INTO order_state_events (order_id, old_status, new_status, status_version, created_at)
-        SELECT id, 'scheduled', 'expired', status_version, NOW()
+        INSERT INTO order_state_events (order_id, from_status, to_status, actor_type, created_at)
+        SELECT id, 'scheduled', 'expired', 'system', NOW()
         FROM expired_orders`,
 	)
 	return err

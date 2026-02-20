@@ -424,8 +424,8 @@ func TestScheduledOrderFlowHappyPath(t *testing.T) {
 	assertStatus(t, svc, orderID, StatusAssigned)
 
 	// Driver departs (Assigned → Approaching).
-	if err := svc.applyTransition(ctx, orderID, transitionParams{to: StatusApproaching, actorType: "driver"}); err != nil {
-		t.Fatalf("approaching: %v", err)
+	if err := svc.Depart(ctx, DepartCommand{OrderID: orderID, DriverID: "d_sched_1"}); err != nil {
+		t.Fatalf("depart: %v", err)
 	}
 	assertStatus(t, svc, orderID, StatusApproaching)
 }

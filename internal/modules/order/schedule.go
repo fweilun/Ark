@@ -51,6 +51,7 @@ type CancelScheduledCommand struct {
 type DriverCancelScheduledCommand struct {
 	OrderID  types.ID
 	DriverID types.ID
+	Reason   string
 }
 
 // ListScheduledByPassengerCommand specifies the filter for listing a passenger's scheduled orders.
