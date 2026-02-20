@@ -347,11 +347,17 @@ func (s *Store) BumpIncentiveBonusForApproaching(ctx context.Context, bump int64
 // the end of their schedule_window_mins without being claimed.
 func (s *Store) ExpireOverdueScheduled(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, `
-        UPDATE orders
-        SET status = 'expired',
-            status_version = status_version + 1
-        WHERE status = 'scheduled'
-          AND scheduled_at + (schedule_window_mins * INTERVAL '1 minute') < NOW()`,
+        WITH expired_orders AS (
+            UPDATE orders
+            SET status = 'expired',
+                status_version = status_version + 1
+            WHERE status = 'scheduled'
+              AND scheduled_at + (schedule_window_mins * INTERVAL '1 minute') < NOW()
+            RETURNING id, status_version
+        )
+        INSERT INTO order_state_events (order_id, old_status, new_status, status_version, created_at)
+        SELECT id, 'scheduled', 'expired', status_version, NOW()
+        FROM expired_orders`,
 	)
 	return err
 }
