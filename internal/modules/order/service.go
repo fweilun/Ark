@@ -33,6 +33,12 @@ var (
 	ErrBadRequest   = errors.New("bad request")
 )
 
+// TODO(schedule): Add scheduled-order commands and service methods.
+// - CreateScheduled, ListScheduledByPassenger, ListAvailableScheduled
+// - ClaimScheduled, CancelScheduledByPassenger, CancelScheduledByDriver
+// - RunScheduleIncentiveTicker, RunScheduleExpireTicker
+// Ensure state transitions are enforced for scheduled vs realtime flows.
+
 type CreateCommand struct {
 	PassengerID types.ID
 	Pickup      types.Point

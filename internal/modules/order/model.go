@@ -11,14 +11,21 @@ type Status string
 
 const (
 	StatusNone        Status = "none"
-	StatusWaiting     Status = "waiting"     // user is waiting for a driver
-	StatusApproaching Status = "approaching" // driver accepted and is heading to pickup
-	StatusArrived     Status = "arrived"     // driver arrived at pickup
-	StatusDriving     Status = "driving"     // ride in progress
-	StatusPayment     Status = "payment"     // ride completed, awaiting payment/rating
-	StatusComplete    Status = "complete"    // payment/rating complete
-	StatusCancelled   Status = "cancelled"   // order cancelled
-	StatusDenied      Status = "denied"      // driver denied the order
+	StatusScheduled   Status = "scheduled" // scheduled order created
+	StatusWaiting     Status = "waiting"   // awaiting driver match
+	StatusAssigned    Status = "assigned"  // accepted waiting (driver accepted, not departed)
+	StatusApproaching Status = "approaching"
+	StatusArrived     Status = "arrived"
+	StatusDriving     Status = "driving"
+	StatusPayment     Status = "payment"
+	StatusComplete    Status = "complete"
+	StatusCancelled   Status = "cancelled"
+	StatusDenied      Status = "denied"
+	StatusExpired     Status = "expired"
+
+	// Docs aliases from docs/orderflow.md.
+	StatusAwaitingDriver  Status = StatusWaiting
+	StatusAcceptedWaiting Status = StatusAssigned
 )
 
 type Order struct {
@@ -53,23 +60,35 @@ type Event struct {
 
 // AllowedTransitions represents the order state flow (diagram) as code.
 var AllowedTransitions = map[Status][]Status{
-	StatusWaiting:     {StatusApproaching, StatusCancelled, StatusDenied},
+	StatusScheduled:   {StatusWaiting, StatusCancelled, StatusExpired},
+	StatusWaiting:     {StatusWaiting, StatusAssigned, StatusApproaching, StatusCancelled, StatusDenied, StatusExpired},
+	StatusAssigned:    {StatusApproaching, StatusCancelled},
 	StatusApproaching: {StatusArrived, StatusCancelled},
 	StatusArrived:     {StatusDriving, StatusCancelled},
 	StatusDriving:     {StatusPayment, StatusCancelled},
 	StatusPayment:     {StatusComplete},
 }
 
+var allowedTransitionSet = buildTransitionSet(AllowedTransitions)
+
+func buildTransitionSet(transitions map[Status][]Status) map[Status]map[Status]struct{} {
+	set := make(map[Status]map[Status]struct{}, len(transitions))
+	for from, tos := range transitions {
+		next := make(map[Status]struct{}, len(tos))
+		for _, to := range tos {
+			next[to] = struct{}{}
+		}
+		set[from] = next
+	}
+	return set
+}
+
 // CanTransition checks if a transition of order is valid.
 func CanTransition(from, to Status) bool {
-	next, ok := AllowedTransitions[from]
+	next, ok := allowedTransitionSet[from]
 	if !ok {
 		return false
 	}
-	for _, s := range next {
-		if s == to {
-			return true
-		}
-	}
-	return false
+	_, ok = next[to]
+	return ok
 }
