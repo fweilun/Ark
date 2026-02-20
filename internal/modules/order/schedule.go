@@ -22,6 +22,8 @@ const (
 	incentiveTickerInterval = 5 * time.Minute
 	// expireTickerInterval controls how often the expiry ticker fires.
 	expireTickerInterval = 1 * time.Minute
+	// expireTickerInterval controls how often the expiry ticker fires.
+	minimumScheduleLeadTime = 30 * time.Minute
 )
 
 // CreateScheduledCommand holds the fields required to create a scheduled order.
@@ -42,8 +44,8 @@ type ClaimScheduledCommand struct {
 
 // CancelScheduledCommand is used by the passenger to cancel a scheduled order.
 type CancelScheduledCommand struct {
-	OrderID   types.ID
-	Reason    string
+	OrderID types.ID
+	Reason  string
 }
 
 // DriverCancelScheduledCommand is used by a driver to cancel a claimed scheduled order;
@@ -73,7 +75,7 @@ func (s *Service) CreateScheduled(ctx context.Context, cmd CreateScheduledComman
 		return "", ErrBadRequest
 	}
 	now := time.Now()
-	if cmd.ScheduledAt.Before(now.Add(30 * time.Minute)) {
+	if cmd.ScheduledAt.Before(now.Add(minimumScheduleLeadTime)) {
 		return "", ErrBadRequest
 	}
 
@@ -246,4 +248,3 @@ func (s *Service) RunScheduleExpireTicker(ctx context.Context) {
 		}
 	}
 }
-

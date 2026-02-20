@@ -183,7 +183,7 @@ func (s *Store) HasActiveByPassenger(ctx context.Context, passengerID types.ID) 
             WHERE passenger_id = $1
               AND status = ANY($2)
         )`, string(passengerID), statuses,
-    )
+	)
 	var exists bool
 	if err := row.Scan(&exists); err != nil {
 		return false, err

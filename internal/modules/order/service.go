@@ -33,12 +33,6 @@ var (
 	ErrBadRequest   = errors.New("bad request")
 )
 
-// TODO(schedule): Add scheduled-order commands and service methods.
-// - CreateScheduled, ListScheduledByPassenger, ListAvailableScheduled
-// - ClaimScheduled, CancelScheduledByPassenger, CancelScheduledByDriver
-// - RunScheduleIncentiveTicker, RunScheduleExpireTicker
-// Ensure state transitions are enforced for scheduled vs realtime flows.
-
 type CreateCommand struct {
 	PassengerID types.ID
 	Pickup      types.Point
@@ -263,7 +257,7 @@ func (s *Service) Get(ctx context.Context, id types.ID) (*Order, error) {
 
 func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
-		to:        StatusDenied,
+		to:        StatusWaiting,
 		driverID:  &cmd.DriverID,
 		actorType: "driver",
 	})

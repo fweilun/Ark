@@ -219,7 +219,8 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDenied})
+	// [CHECK]
+	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusWaiting})
 }
 
 func (h *OrderHandler) Arrive(c *gin.Context) {
@@ -304,7 +305,7 @@ type createScheduledReq struct {
 	DropoffLat         float64 `json:"dropoff_lat"`
 	DropoffLng         float64 `json:"dropoff_lng"`
 	RideType           string  `json:"ride_type"`
-	ScheduledAt        string  `json:"scheduled_at"`        // RFC3339
+	ScheduledAt        string  `json:"scheduled_at"`         // RFC3339
 	ScheduleWindowMins int     `json:"schedule_window_mins"` // minutes before scheduled_at to open for claiming
 }
 

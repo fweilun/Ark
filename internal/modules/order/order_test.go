@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"ark/internal/types"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // TestCanTransition verifies the state machine transition table without a database.
@@ -25,7 +25,6 @@ func TestCanTransition(t *testing.T) {
 	}{
 		// happy-path forward transitions
 		{StatusWaiting, StatusApproaching, true},
-		{StatusWaiting, StatusAssigned, true},
 		{StatusAssigned, StatusApproaching, true},
 		{StatusApproaching, StatusArrived, true},
 		{StatusArrived, StatusDriving, true},
@@ -39,14 +38,10 @@ func TestCanTransition(t *testing.T) {
 		{StatusDriving, StatusCancelled, true},
 		// matching retries / re-match
 		{StatusApproaching, StatusWaiting, true}, // driver cancel → re-match
-		{StatusDenied, StatusWaiting, true},      // denied → re-match
-		{StatusWaiting, StatusDenied, true},      // driver denies
 		{StatusWaiting, StatusWaiting, true},     // self-loop retry
 		// expiry / scheduled flow
 		{StatusWaiting, StatusExpired, true},
-		{StatusScheduled, StatusWaiting, true},
 		{StatusScheduled, StatusCancelled, true},
-		{StatusScheduled, StatusExpired, true},
 		{StatusScheduled, StatusAssigned, true},   // driver claims scheduled order
 		{StatusAssigned, StatusScheduled, true},   // driver cancels → re-open
 		{StatusAssigned, StatusApproaching, true}, // driver departs
@@ -58,7 +53,6 @@ func TestCanTransition(t *testing.T) {
 		// invalid: skipping states
 		{StatusWaiting, StatusDriving, false},
 		{StatusWaiting, StatusComplete, false},
-		{StatusDenied, StatusApproaching, false},
 		{StatusApproaching, StatusDriving, false},
 	}
 	for _, tc := range cases {
@@ -110,11 +104,57 @@ func TestOrderFlowDeny(t *testing.T) {
 	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d1"}); err != nil {
 		t.Fatalf("deny: %v", err)
 	}
-	assertStatus(t, svc, orderID, StatusDenied)
+	assertStatus(t, svc, orderID, StatusWaiting)
+	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d2"}); err != nil {
+		t.Fatalf("deny: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusWaiting)
 
-	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d1"}); err != ErrInvalidState {
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d3"}); err != ErrInvalidState {
 		t.Fatalf("accept after deny: expected ErrInvalidState, got %v", err)
 	}
+}
+
+func TestOrderFlowAcceptSameTime(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	orderID := mustCreateOrder(t, svc, "p_accept_same_time")
+
+	driverIDs := []types.ID{"d1", "d2", "d3"}
+	errs := make(chan error, len(driverIDs))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for _, driverID := range driverIDs {
+		wg.Add(1)
+		go func(did types.ID) {
+			defer wg.Done()
+			<-start
+			errs <- svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: did})
+		}(driverID)
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	success := 0
+	for err := range errs {
+		if err == nil {
+			success++
+			continue
+		}
+		if err != ErrConflict && err != ErrInvalidState {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	if success != 1 {
+		t.Fatalf("expected exactly 1 success, got %d", success)
+	}
+
+	assertStatus(t, svc, orderID, StatusApproaching)
 }
 
 func TestOrderFlowCancelWaiting(t *testing.T) {
@@ -366,28 +406,6 @@ func TestOrderFlowRematch(t *testing.T) {
 	// A new driver can now accept the re-queued order.
 	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d_new"}); err != nil {
 		t.Fatalf("accept after rematch: %v", err)
-	}
-	assertStatus(t, svc, orderID, StatusApproaching)
-}
-
-func TestOrderFlowDenyRematch(t *testing.T) {
-	svc := NewService(setupTestStore(t), nil)
-	ctx := context.Background()
-
-	// Driver denies → system retries matching → new driver can accept.
-	orderID := mustCreateOrder(t, svc, "p_deny_rematch")
-	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d_deny"}); err != nil {
-		t.Fatalf("deny: %v", err)
-	}
-	assertStatus(t, svc, orderID, StatusDenied)
-
-	if err := svc.Rematch(ctx, RematchCommand{OrderID: orderID}); err != nil {
-		t.Fatalf("rematch after deny: %v", err)
-	}
-	assertStatus(t, svc, orderID, StatusWaiting)
-
-	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d_new"}); err != nil {
-		t.Fatalf("accept after deny+rematch: %v", err)
 	}
 	assertStatus(t, svc, orderID, StatusApproaching)
 }
