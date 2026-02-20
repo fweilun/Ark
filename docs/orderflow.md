@@ -49,21 +49,65 @@ flowchart TB
   classDef terminal fill:#e6fffb,stroke:#0f766e,stroke-width:1.5px,rx:8,ry:8,color:#111111;
   classDef exception fill:#fff1f2,stroke:#be123c,stroke-width:1.5px,rx:8,ry:8,color:#111111;
 
-  subgraph StateManager["Overall workflow"]
+  subgraph StateManager["Enhanced Order State Machine"]
     direction TB
-    RequestRide["User: Request Ride"] --> Approaching["Driver: Approaching"] --> Arrived["Driver: Arrived"] --> Driving["Trip Started"] --> Payment["Payment"] --> Complete["Completed"]
-    RequestRide --> Cancelled["User: Cancelled"]
-    RequestRide --> Denied["Driver: Denied"]
+
+    %% 初始訂單類型
+    ScheduledOrder["Scheduled Order Created<br/>(預約單建立)"]
+    RealtimeOrder["Realtime Order Created<br/>(即時單建立)"]
+
+    %% 預約單進入媒合流程
+    ScheduledOrder --> AwaitingDriver["Awaiting Driver<br/>(等待司機接單)"]
+
+    %% 媒合中的轉換
+    AwaitingDriver --> |driver accepts| AcceptedWaiting["Accepted (Waiting)<br/>已接單待出發"]
+    AwaitingDriver --> |driver declines| AwaitingDriver
+    AwaitingDriver --> |matching timeout| Expired["Expired<br/>訂單過期"]
+
+    %% 即時單的媒合（直接推送）
+    RealtimeOrder --> AwaitingDriverImmediate["Awaiting Driver<br/>(即時等待)"]
+    AwaitingDriverImmediate --> |driver accepts| Approaching
+    AwaitingDriverImmediate --> |driver declines| AwaitingDriverImmediate
+    AwaitingDriverImmediate --> |matching timeout| Expired
+
+    %% 預訂單出發
+    AcceptedWaiting --> |driver starts| Approaching
+
+    %% 共同行進路徑
+    Approaching --> |driver arrives| Arrived["Arrived<br/>已抵達"]
+    Arrived --> |passenger onboard / driver starts trip| Driving["Driving<br/>行程中"]
+    Driving --> |drop off /到达目的地| Payment["Payment<br/>支付中"]
+    Payment --> |payment success| Complete["Complete<br/>已完成"]
+
+    %% 取消路徑（所有非終止狀態皆可取消）
+    AwaitingDriver --> |user cancels| Cancelled
+    AwaitingDriverImmediate --> |user cancels| Cancelled
+    AcceptedWaiting --> |user cancels| Cancelled
+    AcceptedWaiting --> |driver cancels| Cancelled
+    Approaching --> |user cancels| Cancelled
+    Approaching --> |driver cancels| Cancelled
+    Arrived --> |user cancels| Cancelled
+    Arrived --> |driver cancels| Cancelled
+    Driving --> |driver cancels| Cancelled
+
+    %% 超時例外
+    %% Arrived --> |timeout| NoShow["NoShow<br/>乘客未出現"]
+
+    %% 最終終止狀態
+    Cancelled --> EndCancelled["終止"]
+    Expired --> EndExpired["終止"]
+    Blank --> EndNoShow["Blank"]
+    Complete --> EndComplete["終止"]
   end
 
-  class RequestRide,Approaching,Arrived,Driving state;
-  class Payment,Complete terminal;
-  class Cancelled,Denied exception;
+  class ScheduledOrder,RealtimeOrder,AwaitingDriver,AwaitingDriverImmediate,AcceptedWaiting,Approaching,Arrived,Driving,Payment state;
+  class Complete terminal;
+  class Expired,Cancelled,Blank exception;
 ```
 
 ## Cases:
 
-App User flow:
+App User flow (for app):
 ```mermaid
 flowchart TB
   classDef action fill:#ffffff,stroke:#1f2937,stroke-width:1px,rx:8,ry:8,color:#111111;
