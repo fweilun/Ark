@@ -72,7 +72,7 @@ func (s *Service) CreateScheduled(ctx context.Context, cmd CreateScheduledComman
 		return "", ErrBadRequest
 	}
 	now := time.Now()
-	if !cmd.ScheduledAt.After(now.Add(30 * time.Minute)) {
+	if cmd.ScheduledAt.Before(now.Add(30 * time.Minute)) {
 		return "", ErrBadRequest
 	}
 
