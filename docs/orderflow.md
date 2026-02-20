@@ -85,7 +85,7 @@ flowchart TB
     AcceptedWaiting --> |user cancels| Cancelled
     AcceptedWaiting --> |driver cancels| Cancelled
     Approaching --> |user cancels| Cancelled
-    Approaching --> |driver cancels| Cancelled
+    Approaching --> |driver cancels| AwaitingDriver
     Arrived --> |user cancels| Cancelled
     Arrived --> |driver cancels| Cancelled
     Driving --> |driver cancels| Cancelled
