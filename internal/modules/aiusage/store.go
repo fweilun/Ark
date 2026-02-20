@@ -21,11 +21,11 @@ func NewStore(db *pgxpool.Pool) *Store {
 // It resets the counter to DefaultTokens when last_reset_month is behind the current month.
 // Returns ErrInsufficientTokens when 0 rows are updated (quota exhausted or user absent).
 func (s *Store) UseToken(ctx context.Context, uid string) error {
-	now := time.Now().Format("2006-01")
+	now := time.Now().UTC().Format("2006-01")
 
 	tag, err := s.db.Exec(ctx, `
 		UPDATE ai_usage SET
-			tokens_remaining = CASE WHEN last_reset_month != $1 THEN $2 - 1 ELSE tokens_remaining - 1 END,
+			tokens_remaining = CASE WHEN last_reset_month < $1 THEN $2 - 1 ELSE tokens_remaining - 1 END,
 			last_reset_month = $1
 		WHERE uid = $3 AND (last_reset_month < $1 OR tokens_remaining > 0)
 	`, now, DefaultTokens, uid)
@@ -39,12 +39,15 @@ func (s *Store) UseToken(ctx context.Context, uid string) error {
 }
 
 // EnsureUser inserts a new ai_usage row for uid with the default token allowance.
-// If the row already exists the insert is silently skipped (ON CONFLICT DO NOTHING).
-func (s *Store) EnsureUser(ctx context.Context, uid string) error {
-	_, err := s.db.Exec(ctx, `
+// Returns true if a new row was created, false if the row already existed.
+func (s *Store) EnsureUser(ctx context.Context, uid string) (bool, error) {
+	tag, err := s.db.Exec(ctx, `
 		INSERT INTO ai_usage (uid, tokens_remaining, last_reset_month)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (uid) DO NOTHING
-	`, uid, DefaultTokens, time.Now().Format("2006-01"))
-	return err
+	`, uid, DefaultTokens, time.Now().UTC().Format("2006-01"))
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }

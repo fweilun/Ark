@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,8 +42,9 @@ func TestUseTokenInsufficientCheck(t *testing.T) {
 	svc, db := setupTestService(t)
 	ctx := context.Background()
 
-	// Seed user with 0 tokens for the current month.
-	if _, err := db.Exec(ctx, "INSERT INTO ai_usage (uid, tokens_remaining, last_reset_month) VALUES ('user_zero', 0, TO_CHAR(NOW(), 'YYYY-MM'))"); err != nil {
+	// Use the same month-format logic as the store (UTC) to avoid timezone skew.
+	currentMonth := time.Now().UTC().Format("2006-01")
+	if _, err := db.Exec(ctx, "INSERT INTO ai_usage (uid, tokens_remaining, last_reset_month) VALUES ('user_zero', 0, $1)", currentMonth); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -67,6 +69,23 @@ func TestUseTokenNewUser(t *testing.T) {
 	}
 	if remaining != DefaultTokens-1 {
 		t.Fatalf("expected %d tokens remaining after first use, got %d", DefaultTokens-1, remaining)
+	}
+}
+
+// TestChatInsufficientTokens verifies that Chat returns ErrInsufficientTokens when quota is 0,
+// without making an actual ChatGPT API call.
+func TestChatInsufficientTokens(t *testing.T) {
+	svc, db := setupTestService(t)
+	ctx := context.Background()
+
+	currentMonth := time.Now().UTC().Format("2006-01")
+	if _, err := db.Exec(ctx, "INSERT INTO ai_usage (uid, tokens_remaining, last_reset_month) VALUES ('user_chat_zero', 0, $1)", currentMonth); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	_, err := svc.Chat(ctx, "user_chat_zero", "hello")
+	if err != ErrInsufficientTokens {
+		t.Fatalf("expected ErrInsufficientTokens, got %v", err)
 	}
 }
 
@@ -95,7 +114,7 @@ func setupTestService(t *testing.T) (*Service, *pgxpool.Pool) {
 		t.Fatalf("truncate ai_usage: %v", err)
 	}
 
-	return NewService(NewStore(db)), db
+	return NewService(NewStore(db), ""), db
 }
 
 func applyMigrations(ctx context.Context, db *pgxpool.Pool) error {
