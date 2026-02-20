@@ -1,0 +1,47 @@
+name: Test AI Usage Module
+
+on:
+  push:
+    paths:
+      - 'internal/modules/aiusage/**'
+      - 'migrations/0003_ai_usage.sql'
+      - '.github/workflows/test-ai-usage.yml'
+  pull_request:
+    paths:
+      - 'internal/modules/aiusage/**'
+      - 'migrations/0003_ai_usage.sql'
+      - '.github/workflows/test-ai-usage.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ark
+          POSTGRES_PASSWORD: ark
+          POSTGRES_DB: ark_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run AI usage module tests
+        env:
+          ARK_TEST_DSN: postgres://ark:ark@localhost:5432/ark_test
+        run: go test ./internal/modules/aiusage/...
