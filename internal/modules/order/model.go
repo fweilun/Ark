@@ -58,15 +58,29 @@ type Event struct {
 	CreatedAt  time.Time
 }
 
-// AllowedTransitions represents the order state flow (diagram) as code.
+// AllowedTransitions represents the order state flow as code (see docs/orderflow.md mermaid diagram).
+// Actor-specific semantics (passenger/driver/system) are enforced by the service layer;
+// this map defines which state pairs are structurally valid.
 var AllowedTransitions = map[Status][]Status{
-	StatusScheduled:   {StatusWaiting, StatusCancelled, StatusExpired},
-	StatusWaiting:     {StatusWaiting, StatusAssigned, StatusApproaching, StatusCancelled, StatusDenied, StatusExpired},
-	StatusAssigned:    {StatusApproaching, StatusCancelled},
-	StatusApproaching: {StatusArrived, StatusCancelled},
-	StatusArrived:     {StatusDriving, StatusCancelled},
-	StatusDriving:     {StatusPayment, StatusCancelled},
-	StatusPayment:     {StatusComplete},
+	// Scheduled order enters matching pool; can be cancelled before activation or expire.
+	StatusScheduled: {StatusWaiting, StatusCancelled, StatusExpired},
+	// Awaiting a driver: realtime → Approaching on accept, scheduled → Assigned on accept,
+	// self-loop on matching retry, → Denied on driver decline, → Cancelled on passenger cancel,
+	// → Expired on matching timeout.
+	StatusWaiting: {StatusWaiting, StatusAssigned, StatusApproaching, StatusCancelled, StatusDenied, StatusExpired},
+	// Driver accepted a scheduled order but has not departed; can start trip (→ Approaching) or cancel.
+	StatusAssigned: {StatusApproaching, StatusCancelled},
+	// Driver en route: arrives at pickup (→ Arrived), passenger or driver cancels (→ Cancelled),
+	// or driver cancels for re-matching (→ Waiting).
+	StatusApproaching: {StatusArrived, StatusCancelled, StatusWaiting},
+	// Driver at pickup: passenger boards (→ Driving) or either party cancels.
+	StatusArrived: {StatusDriving, StatusCancelled},
+	// Trip in progress: drop-off (→ Payment) or driver cancels.
+	StatusDriving: {StatusPayment, StatusCancelled},
+	// Awaiting payment confirmation.
+	StatusPayment: {StatusComplete},
+	// Driver declined; system may retry matching (→ Waiting).
+	StatusDenied: {StatusWaiting},
 }
 
 var allowedTransitionSet = buildTransitionSet(AllowedTransitions)

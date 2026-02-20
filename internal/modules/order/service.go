@@ -84,6 +84,10 @@ type DenyCommand struct {
 	DriverID types.ID
 }
 
+type RematchCommand struct {
+	OrderID types.ID
+}
+
 type PayCommand struct {
 	OrderID types.ID
 }
@@ -250,6 +254,16 @@ func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 func (s *Service) Pay(ctx context.Context, cmd PayCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusComplete,
+		actorType: "system",
+	})
+}
+
+// Rematch returns an order to StatusWaiting for re-matching.
+// Called by the system when a driver declines (Denied → Waiting) or
+// cancels while approaching (Approaching → Waiting).
+func (s *Service) Rematch(ctx context.Context, cmd RematchCommand) error {
+	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
+		to:        StatusWaiting,
 		actorType: "system",
 	})
 }

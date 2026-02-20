@@ -16,6 +16,54 @@ import (
 	"ark/internal/types"
 )
 
+// TestCanTransition verifies the state machine transition table without a database.
+func TestCanTransition(t *testing.T) {
+	cases := []struct {
+		from, to Status
+		want     bool
+	}{
+		// happy-path forward transitions
+		{StatusWaiting, StatusApproaching, true},
+		{StatusWaiting, StatusAssigned, true},
+		{StatusAssigned, StatusApproaching, true},
+		{StatusApproaching, StatusArrived, true},
+		{StatusArrived, StatusDriving, true},
+		{StatusDriving, StatusPayment, true},
+		{StatusPayment, StatusComplete, true},
+		// cancels from every non-terminal state
+		{StatusWaiting, StatusCancelled, true},
+		{StatusAssigned, StatusCancelled, true},
+		{StatusApproaching, StatusCancelled, true},
+		{StatusArrived, StatusCancelled, true},
+		{StatusDriving, StatusCancelled, true},
+		// matching retries / re-match
+		{StatusApproaching, StatusWaiting, true}, // driver cancel → re-match
+		{StatusDenied, StatusWaiting, true},      // denied → re-match
+		{StatusWaiting, StatusDenied, true},      // driver denies
+		{StatusWaiting, StatusWaiting, true},     // self-loop retry
+		// expiry / scheduled flow
+		{StatusWaiting, StatusExpired, true},
+		{StatusScheduled, StatusWaiting, true},
+		{StatusScheduled, StatusCancelled, true},
+		{StatusScheduled, StatusExpired, true},
+		// invalid: terminal states have no outgoing transitions
+		{StatusComplete, StatusWaiting, false},
+		{StatusCancelled, StatusWaiting, false},
+		{StatusExpired, StatusWaiting, false},
+		// invalid: skipping states
+		{StatusWaiting, StatusDriving, false},
+		{StatusWaiting, StatusComplete, false},
+		{StatusDenied, StatusApproaching, false},
+		{StatusApproaching, StatusDriving, false},
+	}
+	for _, tc := range cases {
+		got := CanTransition(tc.from, tc.to)
+		if got != tc.want {
+			t.Errorf("CanTransition(%s, %s) = %v, want %v", tc.from, tc.to, got, tc.want)
+		}
+	}
+}
+
 func TestOrderFlowHappyPath(t *testing.T) {
 	svc := NewService(setupTestStore(t), nil)
 	ctx := context.Background()
@@ -292,6 +340,56 @@ func TestRejectOrderAtAnyTime(t *testing.T) {
 			t.Fatalf("expected status cancelled, got %s", o.Status)
 		}
 	})
+}
+
+func TestOrderFlowRematch(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	// Driver accepts, then cancels while approaching → order returns to Waiting.
+	orderID := mustCreateOrder(t, svc, "p_rematch")
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d_cancel"}); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+
+	if err := svc.Rematch(ctx, RematchCommand{OrderID: orderID}); err != nil {
+		t.Fatalf("rematch: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusWaiting)
+
+	// A new driver can now accept the re-queued order.
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d_new"}); err != nil {
+		t.Fatalf("accept after rematch: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+}
+
+func TestOrderFlowDenyRematch(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	// Driver denies → system retries matching → new driver can accept.
+	orderID := mustCreateOrder(t, svc, "p_deny_rematch")
+	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d_deny"}); err != nil {
+		t.Fatalf("deny: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusDenied)
+
+	if err := svc.Rematch(ctx, RematchCommand{OrderID: orderID}); err != nil {
+		t.Fatalf("rematch after deny: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusWaiting)
+
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d_new"}); err != nil {
+		t.Fatalf("accept after deny+rematch: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+
+	// Rematch from Denied is no longer valid after order has moved past Denied.
+	if err := svc.Rematch(ctx, RematchCommand{OrderID: orderID}); err != ErrInvalidState {
+		t.Fatalf("rematch from approaching: expected ErrInvalidState, got %v", err)
+	}
 }
 
 func mustCreateOrder(t *testing.T, svc *Service, passengerID types.ID) types.ID {

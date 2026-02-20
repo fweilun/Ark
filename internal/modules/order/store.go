@@ -146,7 +146,7 @@ func (s *Store) HasActiveByPassenger(ctx context.Context, passengerID types.ID) 
         SELECT EXISTS (
             SELECT 1 FROM orders
             WHERE passenger_id = $1
-              AND status IN ('waiting','approaching','arrived','driving','payment')
+              AND status IN ('waiting','assigned','approaching','arrived','driving','payment')
         )`, string(passengerID),
     )
 	var exists bool
