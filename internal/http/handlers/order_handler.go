@@ -374,6 +374,10 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
 		return
 	}
+	if !from.Before(to) {
+		writeError(c, http.StatusBadRequest, "from must be before to")
+		return
+	}
 	orders, err := h.order.ListAvailableScheduled(c.Request.Context(), from, to)
 	if err != nil {
 		writeOrderError(c, err)
