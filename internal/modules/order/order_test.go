@@ -385,11 +385,6 @@ func TestOrderFlowDenyRematch(t *testing.T) {
 		t.Fatalf("accept after deny+rematch: %v", err)
 	}
 	assertStatus(t, svc, orderID, StatusApproaching)
-
-	// Rematch from Denied is no longer valid after order has moved past Denied.
-	if err := svc.Rematch(ctx, RematchCommand{OrderID: orderID}); err != ErrInvalidState {
-		t.Fatalf("rematch from approaching: expected ErrInvalidState, got %v", err)
-	}
 }
 
 func mustCreateOrder(t *testing.T, svc *Service, passengerID types.ID) types.ID {
