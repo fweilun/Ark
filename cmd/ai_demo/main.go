@@ -39,8 +39,13 @@ func main() {
 		log.Fatalf("Failed to create route service: %v", err)
 	}
 
+	placesService, err := maps.NewPlacesService(mapsApiKey)
+	if err != nil {
+		log.Fatalf("Failed to create places service: %v", err)
+	}
+
 	// Initialize Trip Planner
-	planner, err := service.NewTripPlanner(provider, routeService)
+	planner, err := service.NewTripPlanner(provider, routeService, placesService)
 	if err != nil {
 		log.Fatalf("Failed to create trip planner: %v", err)
 	}
