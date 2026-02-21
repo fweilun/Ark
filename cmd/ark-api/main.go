@@ -57,6 +57,8 @@ func main() {
 
     go matchingSvc.RunScheduler(ctx)
     go orderSvc.RunTimeoutMonitor(ctx)
+    go orderSvc.RunScheduleIncentiveTicker(ctx)
+    go orderSvc.RunScheduleExpireTicker(ctx)
 
     if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
         log.Fatal(err)

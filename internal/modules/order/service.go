@@ -40,6 +40,13 @@ type CreateCommand struct {
 	RideType    string
 }
 
+// DepartCommand is used by a driver to depart for the pickup after claiming a scheduled order
+// (StatusAssigned → StatusApproaching).
+type DepartCommand struct {
+	OrderID  types.ID
+	DriverID types.ID
+}
+
 type MatchCommand struct {
 	OrderID   types.ID
 	DriverID  types.ID
@@ -76,6 +83,10 @@ type CancelCommand struct {
 type DenyCommand struct {
 	OrderID  types.ID
 	DriverID types.ID
+}
+
+type RematchCommand struct {
+	OrderID types.ID
 }
 
 type PayCommand struct {
@@ -165,6 +176,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (types.ID, erro
 		Dropoff:       cmd.Dropoff,
 		RideType:      cmd.RideType,
 		EstimatedFee:  est,
+		OrderType:     "instant",
 		CreatedAt:     now,
 	}
 	if err := s.store.Create(ctx, o); err != nil {
@@ -190,6 +202,16 @@ func (s *Service) Match(ctx context.Context, cmd MatchCommand) error {
 }
 
 func (s *Service) Accept(ctx context.Context, cmd AcceptCommand) error {
+	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
+		to:        StatusApproaching,
+		driverID:  &cmd.DriverID,
+		actorType: "driver",
+	})
+}
+
+// Depart moves a claimed scheduled order from StatusAssigned to StatusApproaching
+// when the driver departs for the pickup location.
+func (s *Service) Depart(ctx context.Context, cmd DepartCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusApproaching,
 		driverID:  &cmd.DriverID,
@@ -235,7 +257,7 @@ func (s *Service) Get(ctx context.Context, id types.ID) (*Order, error) {
 
 func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
-		to:        StatusDenied,
+		to:        StatusWaiting,
 		driverID:  &cmd.DriverID,
 		actorType: "driver",
 	})
@@ -244,6 +266,16 @@ func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 func (s *Service) Pay(ctx context.Context, cmd PayCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusComplete,
+		actorType: "system",
+	})
+}
+
+// Rematch returns an order to StatusWaiting for re-matching.
+// Called by the system when a driver declines (Denied → Waiting) or
+// cancels while approaching (Approaching → Waiting).
+func (s *Service) Rematch(ctx context.Context, cmd RematchCommand) error {
+	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
+		to:        StatusWaiting,
 		actorType: "system",
 	})
 }
