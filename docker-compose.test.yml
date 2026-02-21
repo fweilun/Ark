@@ -1,0 +1,15 @@
+services:
+  ark-test:
+    container_name: ark-test
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: build
+    volumes:
+      - .:/src
+    environment:
+      ARK_DB_DSN: "postgres://postgres:postgres@postgres:5432/ark?sslmode=disable"
+      ARK_REDIS_ADDR: "redis:6379"
+    depends_on:
+      - postgres
+      - redis

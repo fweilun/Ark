@@ -3,3 +3,7 @@
 !.github/
 !.github/workflows/
 !.github/workflows/*.yml
+zoozoo-v1-firebase-adminsdk-fbsvc-2adb5592ce.json
+*.md
+.claude
+playground
