@@ -6,11 +6,17 @@ on:
       - 'internal/modules/aiusage/**'
       - 'migrations/0003_ai_usage.sql'
       - '.github/workflows/test-ai-usage.yml'
+      - 'cmd/ark-api/**'
+      - 'internal/http/**'
+      - 'internal/config/**'
   pull_request:
     paths:
       - 'internal/modules/aiusage/**'
       - 'migrations/0003_ai_usage.sql'
       - '.github/workflows/test-ai-usage.yml'
+      - 'cmd/ark-api/**'
+      - 'internal/http/**'
+      - 'internal/config/**'
 
 jobs:
   test:
