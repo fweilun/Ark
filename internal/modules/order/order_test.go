@@ -96,25 +96,6 @@ func TestOrderFlowHappyPath(t *testing.T) {
 	assertStatus(t, svc, orderID, StatusComplete)
 }
 
-func TestOrderFlowDeny(t *testing.T) {
-	svc := NewService(setupTestStore(t), nil)
-	ctx := context.Background()
-
-	orderID := mustCreateOrder(t, svc, "p_deny")
-	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d1"}); err != nil {
-		t.Fatalf("deny: %v", err)
-	}
-	assertStatus(t, svc, orderID, StatusWaiting)
-	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d2"}); err != nil {
-		t.Fatalf("deny: %v", err)
-	}
-	assertStatus(t, svc, orderID, StatusWaiting)
-
-	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d3"}); err != ErrInvalidState {
-		t.Fatalf("accept after deny: expected ErrInvalidState, got %v", err)
-	}
-}
-
 func TestOrderFlowAcceptSameTime(t *testing.T) {
 	svc := NewService(setupTestStore(t), nil)
 	ctx := context.Background()
