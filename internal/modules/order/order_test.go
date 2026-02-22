@@ -96,6 +96,31 @@ func TestOrderFlowHappyPath(t *testing.T) {
 	assertStatus(t, svc, orderID, StatusComplete)
 }
 
+func TestOrderFlowDeny(t *testing.T) {
+	svc := NewService(setupTestStore(t), nil)
+	ctx := context.Background()
+
+	orderID := mustCreateOrder(t, svc, "p_deny")
+	assertStatus(t, svc, orderID, StatusWaiting)
+
+	// First driver accepts the order.
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d1"}); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+
+	// Driver denies the order; it should transition back to Waiting for rematch.
+	if err := svc.Deny(ctx, DenyCommand{OrderID: orderID, DriverID: "d1"}); err != nil {
+		t.Fatalf("deny: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusWaiting)
+
+	// A different driver should now be able to accept the order again.
+	if err := svc.Accept(ctx, AcceptCommand{OrderID: orderID, DriverID: "d2"}); err != nil {
+		t.Fatalf("accept after deny: %v", err)
+	}
+	assertStatus(t, svc, orderID, StatusApproaching)
+}
 func TestOrderFlowAcceptSameTime(t *testing.T) {
 	svc := NewService(setupTestStore(t), nil)
 	ctx := context.Background()
