@@ -5,13 +5,13 @@ import "context"
 // Service orchestrates AI token-usage logic.
 type Service struct {
 	store     *Store
-	openAIKey string
+	geminiKey string
 }
 
 // NewService creates a Service backed by the given Store.
-// openAIKey is the OpenAI API key used for ChatGPT requests.
-func NewService(store *Store, openAIKey string) *Service {
-	return &Service{store: store, openAIKey: openAIKey}
+// geminiKey is the Gemini API key used for chat requests.
+func NewService(store *Store, geminiKey string) *Service {
+	return &Service{store: store, geminiKey: geminiKey}
 }
 
 // UseToken deducts one token from the user's monthly allowance.
@@ -36,11 +36,11 @@ func (s *Service) UseToken(ctx context.Context, uid string) error {
 	return s.store.UseToken(ctx, uid)
 }
 
-// Chat deducts one token from uid's monthly quota and calls ChatGPT with the given message.
+// Chat deducts one token from uid's monthly quota and calls Gemini with the given message.
 // Returns ErrInsufficientTokens if the quota is exhausted before making the API call.
 func (s *Service) Chat(ctx context.Context, uid, message string) (string, error) {
 	if err := s.UseToken(ctx, uid); err != nil {
 		return "", err
 	}
-	return callChatGPT(ctx, s.openAIKey, message)
+	return callGemini(ctx, s.geminiKey, message)
 }
