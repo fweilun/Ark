@@ -45,10 +45,10 @@ func (h *AIHandler) Chat(c *gin.Context) {
 		return
 	}
 
-	context, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	reply, err := h.ai.Chat(context, req.UID, req.Message)
+	reply, err := h.ai.Chat(ctx, req.UID, req.Message)
 	if err != nil {
 		switch {
 		case errors.Is(err, aiusage.ErrInsufficientTokens):
