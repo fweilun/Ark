@@ -16,6 +16,7 @@ type UserDevice struct {
 	DeviceID   *string   `json:"device_id,omitempty" db:"device_id"`   // 指針允許 null
 	LastSeenAt time.Time `json:"last_seen_at" db:"last_seen_at"`
 	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // UserNotificationProfile is an aggregate view of all active tokens for a user (query only, not stored).
