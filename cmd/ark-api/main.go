@@ -48,7 +48,11 @@ func main() {
 	locationSvc := location.NewService(locationStore)
 
 	aiStore := aiusage.NewStore(dbPool)
-	aiSvc := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
+	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer aiSvc.Close()
 
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:    orderSvc,

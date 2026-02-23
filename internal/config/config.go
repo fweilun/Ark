@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -34,7 +35,11 @@ func Load() (Config, error) {
 	cfg.Redis.Addr = envOrDefault("ARK_REDIS_ADDR", "localhost:6379")
 	cfg.Matching.TickSeconds = envOrDefaultInt("ARK_MATCH_TICK", 3)
 	cfg.Matching.RadiusKm = envOrDefaultFloat("ARK_MATCH_RADIUS_KM", 3.0)
-	cfg.AI.GeminiKey = envOrError("GEMINI_API_KEY")
+	geminiKey, err := envOrError("GEMINI_API_KEY")
+	if err != nil {
+		return cfg, err
+	}
+	cfg.AI.GeminiKey = geminiKey
 	return cfg, nil
 }
 
@@ -45,11 +50,11 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
-func envOrError(key string) string {
+func envOrError(key string) (string, error) {
 	if v := os.Getenv(key); v != "" {
-		return v
+		return v, nil
 	}
-	panic("environment variable " + key + " is required")
+	return "", fmt.Errorf("required environment variable %q is not set", key)
 }
 
 func envOrDefaultInt(key string, def int) int {

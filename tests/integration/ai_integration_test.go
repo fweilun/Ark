@@ -17,6 +17,12 @@ import (
 )
 
 func TestAIChatEndpointGeminiTokenGuard(t *testing.T) {
+	if os.Getenv("ARK_TEST_DSN") == "" && os.Getenv("ARK_DB_DSN") == "" {
+		t.Skip("ARK_TEST_DSN not set; skipping integration test")
+	}
+	if os.Getenv("ARK_API_BASE_URL") == "" {
+		t.Skip("ARK_API_BASE_URL not set; skipping integration test")
+	}
 	t.Logf("[TEST LOG] starting TestAIChatEndpointGeminiTokenGuard")
 	loadDotEnv(t)
 

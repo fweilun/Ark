@@ -13,22 +13,24 @@ const (
 	geminiModel = "gemini-2.0-flash"
 )
 
-// callGemini sends message to Gemini via Google's official SDK and returns the reply text.
-func callGemini(ctx context.Context, apiKey, message string) (string, error) {
+// newGeminiModel creates a reusable Gemini client and model for the given API key.
+// The caller is responsible for calling client.Close() when done.
+func newGeminiModel(ctx context.Context, apiKey string) (*genai.Client, *genai.GenerativeModel, error) {
 	if strings.TrimSpace(apiKey) == "" {
-		return "", fmt.Errorf("gemini: missing api key")
+		return nil, nil, fmt.Errorf("gemini: missing api key")
 	}
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		return nil, nil, fmt.Errorf("gemini: create client: %w", err)
+	}
+	return client, client.GenerativeModel(geminiModel), nil
+}
+
+// generateText sends message to the provided Gemini model and returns the reply text.
+func generateText(ctx context.Context, model *genai.GenerativeModel, message string) (string, error) {
 	if strings.TrimSpace(message) == "" {
 		return "", fmt.Errorf("gemini: empty message")
 	}
-
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return "", fmt.Errorf("gemini: create client: %w", err)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel(geminiModel)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(message))
 	if err != nil {
