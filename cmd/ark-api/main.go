@@ -44,7 +44,10 @@ func main() {
 	matchingStore := matching.NewStore(redisClient)
 	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
 
-	locationStore := location.NewStore(dbPool, redisClient)
+	locationStore, err := location.NewStore(ctx, dbPool, redisClient)
+	if err != nil {
+		log.Fatal(err)
+	}
 	locationSvc := location.NewService(locationStore)
 
 	aiStore := aiusage.NewStore(dbPool)
