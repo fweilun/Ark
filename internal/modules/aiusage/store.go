@@ -26,7 +26,7 @@ func (s *Store) UseToken(ctx context.Context, uid string) error {
 	tag, err := s.db.Exec(ctx, `
 		UPDATE ai_usage SET
 			tokens_remaining = CASE WHEN last_reset_month < $1 THEN $2 - 1 ELSE tokens_remaining - 1 END,
-			last_reset_month = $1
+			last_reset_month = CASE WHEN last_reset_month < $1 THEN $1 ELSE last_reset_month END
 		WHERE uid = $3 AND (last_reset_month < $1 OR tokens_remaining > 0)
 	`, now, DefaultTokens, uid)
 	if err != nil {
