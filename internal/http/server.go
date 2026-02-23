@@ -18,7 +18,7 @@ type ServerDeps struct {
 	Location     *location.Service
 	Pricing      *pricing.Service
 	AI           *aiusage.Service
-	Notification notification.NotificationService
+	Notification *notification.Service
 }
 
 type Server struct {

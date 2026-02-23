@@ -4,6 +4,7 @@ package notification
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
@@ -25,14 +26,11 @@ type NotificationMessage struct {
 
 // NotificationService defines operations for device registration and push delivery.
 type NotificationService interface {
-	// RegisterDevice registers or updates a device FCM token.
-	RegisterDevice(ctx context.Context, userID types.ID, token, platform, deviceID string) error
+	// EnsureDevice registers or updates a device FCM token.
+	EnsureDevice(ctx context.Context, userID types.ID, token, platform, deviceID string) error
 
 	// NotifyUser sends a push notification to all devices registered for the user.
 	NotifyUser(ctx context.Context, userID types.ID, message *NotificationMessage) error
-
-	// RefreshLastSeen updates the last activity time for a device (heartbeat).
-	RefreshLastSeen(ctx context.Context, userID types.ID, deviceID string) error
 
 	// DeleteOutdatedDevices removes stale device records (called by a scheduled task).
 	DeleteOutdatedDevices(ctx context.Context, before time.Time) error
@@ -64,13 +62,13 @@ func NewService(store NotificationStore, credentialsJSON []byte) (*Service, erro
 	return svc, nil
 }
 
-// RegisterDevice upserts the device token in the store.
-func (s *Service) RegisterDevice(ctx context.Context, userID types.ID, token, platform, deviceID string) error {
+// EnsureDevice upserts the device token in the store.
+func (s *Service) EnsureDevice(ctx context.Context, userID types.ID, token, platform, deviceID string) error {
 	return s.store.UpsertDevice(ctx, userID, token, platform, deviceID)
 }
 
 // NotifyUser retrieves all FCM tokens for the user and sends the notification
-// to each token concurrently using goroutines (fire-and-forget).
+// to each token concurrently. It waits for all goroutines to complete before returning.
 func (s *Service) NotifyUser(ctx context.Context, userID types.ID, message *NotificationMessage) error {
 	tokens, err := s.store.GetTokensByUserID(ctx, userID)
 	if err != nil {
@@ -87,9 +85,12 @@ func (s *Service) NotifyUser(ctx context.Context, userID types.ID, message *Noti
 		}
 	}
 
+	var wg sync.WaitGroup
 	for _, token := range tokens {
 		token := token
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			// Use a background context so that notification sends are not cut short
 			// if the caller's request context is canceled after NotifyUser returns.
 			_, sendErr := s.messaging.Send(context.Background(), &messaging.Message{
@@ -107,12 +108,8 @@ func (s *Service) NotifyUser(ctx context.Context, userID types.ID, message *Noti
 			}
 		}()
 	}
+	wg.Wait()
 	return nil
-}
-
-// RefreshLastSeen delegates to the store to update last_seen_at for the device.
-func (s *Service) RefreshLastSeen(ctx context.Context, userID types.ID, deviceID string) error {
-	return s.store.UpdateLastSeen(ctx, userID, deviceID)
 }
 
 // DeleteOutdatedDevices delegates to the store to remove stale device records.

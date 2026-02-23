@@ -13,24 +13,25 @@ import (
 
 // NotificationHandler handles FCM device registration requests.
 type NotificationHandler struct {
-	svc notification.NotificationService
+	svc *notification.Service
 }
 
 // NewNotificationHandler returns a NotificationHandler wired to the given service.
-func NewNotificationHandler(svc notification.NotificationService) *NotificationHandler {
+func NewNotificationHandler(svc *notification.Service) *NotificationHandler {
 	return &NotificationHandler{svc: svc}
 }
 
-type registerDeviceReq struct {
+type ensureDeviceReq struct {
 	UserID   string `json:"user_id"`
 	FCMToken string `json:"fcm_token"`
 	Platform string `json:"platform"`
 	DeviceID string `json:"device_id,omitempty"`
 }
 
-// RegisterDevice handles POST /api/notifications/register.
-func (h *NotificationHandler) RegisterDevice(c *gin.Context) {
-	var req registerDeviceReq
+// EnsureDevice handles POST /api/notifications/register.
+// It creates the device token entry if it does not exist, or updates it if it does.
+func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
+	var req ensureDeviceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
@@ -56,7 +57,7 @@ func (h *NotificationHandler) RegisterDevice(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.RegisterDevice(c.Request.Context(), types.ID(req.UserID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
+	if err := h.svc.EnsureDevice(c.Request.Context(), types.ID(req.UserID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
 		writeError(c, http.StatusInternalServerError, "internal error")
 		return
 	}

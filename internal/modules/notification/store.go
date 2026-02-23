@@ -18,9 +18,6 @@ type NotificationStore interface {
 	// GetTokensByUserID returns all active FCM tokens for a user.
 	GetTokensByUserID(ctx context.Context, userID types.ID) ([]string, error)
 
-	// UpdateLastSeen updates last_seen_at by device_id (ignored if deviceID is empty).
-	UpdateLastSeen(ctx context.Context, userID types.ID, deviceID string) error
-
 	// DeleteTokens removes the given FCM tokens in bulk.
 	DeleteTokens(ctx context.Context, tokens []string) error
 
@@ -76,20 +73,6 @@ func (s *Store) GetTokensByUserID(ctx context.Context, userID types.ID) ([]strin
 		tokens = append(tokens, t)
 	}
 	return tokens, rows.Err()
-}
-
-// UpdateLastSeen updates the last_seen_at timestamp for the device identified by deviceID.
-// If deviceID is empty, no update is performed.
-func (s *Store) UpdateLastSeen(ctx context.Context, userID types.ID, deviceID string) error {
-	if deviceID == "" {
-		return nil
-	}
-	_, err := s.db.Exec(ctx, `
-		UPDATE user_fcm_tokens
-		SET last_seen_at = NOW(), updated_at = NOW()
-		WHERE user_id = $1 AND device_id = $2
-	`, string(userID), deviceID)
-	return err
 }
 
 // DeleteTokens removes the specified FCM tokens from the database.

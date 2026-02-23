@@ -24,7 +24,7 @@ func NewRouter(
 	locationService *location.Service,
 	pricingService *pricing.Service,
 	aiService *aiusage.Service,
-	notificationService notification.NotificationService,
+	notificationService *notification.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -64,7 +64,7 @@ func NewRouter(
 
 	// notifications
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
-	r.POST("/api/notifications/register", notificationHandler.RegisterDevice)
+	r.POST("/api/notifications/register", notificationHandler.EnsureDevice)
 	// [TODO] for staff only
 	// r.POST("/api/notifications/send", notificationHandler.SendNotification)
 
