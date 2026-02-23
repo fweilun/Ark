@@ -4,6 +4,7 @@ package http
 import (
 	"net/http"
 
+	"ark/internal/modules/aiusage"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/order"
@@ -15,6 +16,7 @@ type ServerDeps struct {
 	Matching *matching.Service
 	Location *location.Service
 	Pricing  *pricing.Service
+	AI       *aiusage.Service
 }
 
 type Server struct {
@@ -22,7 +24,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing)
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI)
 	return &Server{Engine: engine}
 }
 

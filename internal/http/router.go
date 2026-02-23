@@ -8,6 +8,7 @@ import (
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
+	"ark/internal/modules/aiusage"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/order"
@@ -21,6 +22,7 @@ func NewRouter(
 	matchingService *matching.Service,
 	locationService *location.Service,
 	pricingService *pricing.Service,
+	aiService *aiusage.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -49,6 +51,10 @@ func NewRouter(
 	// driver — scheduled order
 	r.POST("/api/orders/:id/claim", orderHandler.Claim)
 	r.POST("/api/orders/:id/driver-cancel", orderHandler.DriverCancel)
+
+	// ai model
+	aiHandler := handlers.NewAIHandler(aiService)
+	r.POST("/api/ai/chat", aiHandler.Chat)
 
 	// location udpate
 	locationHandler := handlers.NewLocationHandler(locationService)
