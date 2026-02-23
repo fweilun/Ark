@@ -26,6 +26,9 @@ type Config struct {
 	AI       struct {
 		GeminiKey string
 	}
+	Notification struct {
+		FirebaseCredentialsJSON string
+	}
 }
 
 func Load() (Config, error) {
@@ -40,6 +43,7 @@ func Load() (Config, error) {
 		return cfg, err
 	}
 	cfg.AI.GeminiKey = geminiKey
+	cfg.Notification.FirebaseCredentialsJSON = envOrDefault("FIREBASE_CREDENTIALS_JSON", "")
 	return cfg, nil
 }
 
