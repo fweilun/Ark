@@ -8,17 +8,25 @@ import (
 	"errors"
 	"time"
 
+	"ark/internal/modules/order"
 	"ark/internal/types"
 )
+
+// OrderService defines the order operations needed by the calendar service.
+type OrderService interface {
+	Create(ctx context.Context, cmd order.CreateCommand) (types.ID, error)
+	Cancel(ctx context.Context, cmd order.CancelCommand) error
+}
 
 // Service orchestrates calendar event and schedule logic.
 type Service struct {
 	store *Store
+	order OrderService
 }
 
-// NewService creates a Service backed by the given Store.
-func NewService(store *Store) *Service {
-	return &Service{store: store}
+// NewService creates a Service backed by the given Store and order service.
+func NewService(store *Store, orderSvc OrderService) *Service {
+	return &Service{store: store, order: orderSvc}
 }
 
 var (
@@ -43,15 +51,15 @@ type EditEventCommand struct {
 	Description string
 }
 
-// CreateAndTieOrderCommand creates a new calendar event and ties it to a ride order
-// via a Schedule entry for the given user.
+// CreateAndTieOrderCommand creates a ride order and ties it to an existing calendar event
+// via a Schedule entry for the given user. The order fields mirror order.CreateCommand.
 type CreateAndTieOrderCommand struct {
-	UID         types.ID
-	From        time.Time
-	To          time.Time
-	Title       string
-	Description string
-	OrderID     types.ID
+	UID         types.ID   // user who owns the schedule entry
+	EventID     types.ID   // existing event to tie the order to
+	PassengerID types.ID
+	Pickup      types.Point
+	Dropoff     types.Point
+	RideType    string
 }
 
 // UntieOrderCommand removes the order link from a user's schedule entry.
@@ -106,40 +114,56 @@ func (s *Service) DeleteEvent(ctx context.Context, id types.ID) error {
 	return s.store.DeleteEvent(ctx, id)
 }
 
-// CreateAndTieOrder creates a new calendar event and a Schedule entry
-// that links the given user to the event and ties the event to an order.
+// CreateAndTieOrder creates a ride order and a Schedule entry linking the user's event
+// to the new order. If the schedule insert fails, the order is cancelled as a best-effort cleanup.
 func (s *Service) CreateAndTieOrder(ctx context.Context, cmd CreateAndTieOrderCommand) (*Schedule, error) {
-	if cmd.UID == "" || cmd.OrderID == "" || cmd.Title == "" {
+	if cmd.UID == "" || cmd.EventID == "" || cmd.PassengerID == "" || cmd.RideType == "" {
 		return nil, ErrBadRequest
 	}
-	if !cmd.From.Before(cmd.To) {
-		return nil, ErrBadRequest
-	}
-	e := &Event{
-		ID:          newID(),
-		From:        cmd.From,
-		To:          cmd.To,
-		Title:       cmd.Title,
-		Description: cmd.Description,
-	}
-	if err := s.store.CreateEvent(ctx, e); err != nil {
+	orderID, err := s.order.Create(ctx, order.CreateCommand{
+		PassengerID: cmd.PassengerID,
+		Pickup:      cmd.Pickup,
+		Dropoff:     cmd.Dropoff,
+		RideType:    cmd.RideType,
+	})
+	if err != nil {
 		return nil, err
 	}
 	sc := &Schedule{
 		UID:       cmd.UID,
-		EventID:   e.ID,
-		TiedOrder: &cmd.OrderID,
+		EventID:   cmd.EventID,
+		TiedOrder: &orderID,
 	}
 	if err := s.store.CreateSchedule(ctx, sc); err != nil {
+		// Best-effort: cancel the order to avoid an orphaned ride request.
+		_ = s.order.Cancel(ctx, order.CancelCommand{
+			OrderID:   orderID,
+			ActorType: "system",
+			Reason:    "schedule_creation_failed",
+		})
 		return nil, err
 	}
 	return sc, nil
 }
 
-// UntieOrder clears the tied_order from a user's schedule entry for the given event.
+// UntieOrder cancels the tied ride order and removes the order link from the schedule entry.
 func (s *Service) UntieOrder(ctx context.Context, cmd UntieOrderCommand) error {
 	if cmd.UID == "" || cmd.EventID == "" {
 		return ErrBadRequest
+	}
+	sc, err := s.store.GetSchedule(ctx, cmd.UID, cmd.EventID)
+	if err != nil {
+		return err
+	}
+	if sc.TiedOrder == nil {
+		return ErrBadRequest
+	}
+	if err := s.order.Cancel(ctx, order.CancelCommand{
+		OrderID:   *sc.TiedOrder,
+		ActorType: "passenger",
+		Reason:    "removed_from_calendar",
+	}); err != nil {
+		return err
 	}
 	return s.store.UpdateScheduleTiedOrder(ctx, cmd.UID, cmd.EventID, nil)
 }

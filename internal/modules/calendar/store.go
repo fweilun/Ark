@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ark/internal/types"
@@ -40,7 +41,7 @@ func (s *Store) GetEvent(ctx context.Context, id types.ID) (*Event, error) {
 	)
 	var e Event
 	err := row.Scan(&e.ID, &e.From, &e.To, &e.Title, &e.Description)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
@@ -104,7 +105,7 @@ func (s *Store) GetSchedule(ctx context.Context, uid, eventID types.ID) (*Schedu
 	var sc Schedule
 	var tiedOrder sql.NullString
 	err := row.Scan(&sc.UID, &sc.EventID, &tiedOrder)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {

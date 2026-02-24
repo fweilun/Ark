@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/order"
 	"ark/internal/types"
 )
 
@@ -38,12 +39,13 @@ type editEventReq struct {
 }
 
 type createAndTieOrderReq struct {
-	UID         string `json:"uid"`
-	From        string `json:"from"`        // RFC3339
-	To          string `json:"to"`          // RFC3339
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	OrderID     string `json:"order_id"`
+	EventID     string  `json:"event_id"`
+	PassengerID string  `json:"passenger_id"` // also used as uid for the schedule entry
+	PickupLat   float64 `json:"pickup_lat"`
+	PickupLng   float64 `json:"pickup_lng"`
+	DropoffLat  float64 `json:"dropoff_lat"`
+	DropoffLng  float64 `json:"dropoff_lng"`
+	RideType    string  `json:"ride_type"`
 }
 
 // CreateEvent handles POST /api/calendar/events.
@@ -133,42 +135,32 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CreateAndTieOrder handles POST /api/calendar/schedules — creates an event and ties it to an order.
+// CreateAndTieOrder handles POST /api/calendar/schedules — creates a ride order and ties it to an existing event.
 func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 	var req createAndTieOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.UID == "" || req.OrderID == "" || req.From == "" || req.To == "" || req.Title == "" {
+	if req.EventID == "" || req.PassengerID == "" || req.RideType == "" {
 		writeError(c, http.StatusBadRequest, "missing fields")
 		return
 	}
-	if !isValidID(req.UID) {
-		writeError(c, http.StatusBadRequest, "invalid uid")
+	if !isValidID(req.EventID) {
+		writeError(c, http.StatusBadRequest, "invalid event_id")
 		return
 	}
-	if !isValidID(req.OrderID) {
-		writeError(c, http.StatusBadRequest, "invalid order_id")
-		return
-	}
-	from, err := time.Parse(time.RFC3339, req.From)
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
-		return
-	}
-	to, err := time.Parse(time.RFC3339, req.To)
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
+	if !isValidID(req.PassengerID) {
+		writeError(c, http.StatusBadRequest, "invalid passenger_id")
 		return
 	}
 	sc, err := h.svc.CreateAndTieOrder(c.Request.Context(), calendar.CreateAndTieOrderCommand{
-		UID:         types.ID(req.UID),
-		From:        from,
-		To:          to,
-		Title:       req.Title,
-		Description: req.Description,
-		OrderID:     types.ID(req.OrderID),
+		UID:         types.ID(req.PassengerID),
+		EventID:     types.ID(req.EventID),
+		PassengerID: types.ID(req.PassengerID),
+		Pickup:      types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
+		Dropoff:     types.Point{Lat: req.DropoffLat, Lng: req.DropoffLng},
+		RideType:    req.RideType,
 	})
 	if err != nil {
 		writeCalendarError(c, err)
@@ -220,10 +212,12 @@ func (h *CalendarHandler) ListSchedules(c *gin.Context) {
 
 func writeCalendarError(c *gin.Context, err error) {
 	switch err {
-	case calendar.ErrBadRequest:
+	case calendar.ErrBadRequest, order.ErrBadRequest, order.ErrActiveOrder:
 		writeError(c, http.StatusBadRequest, err.Error())
-	case calendar.ErrNotFound:
+	case calendar.ErrNotFound, order.ErrNotFound:
 		writeError(c, http.StatusNotFound, err.Error())
+	case order.ErrInvalidState, order.ErrConflict:
+		writeError(c, http.StatusConflict, err.Error())
 	default:
 		writeError(c, http.StatusInternalServerError, "internal error")
 	}

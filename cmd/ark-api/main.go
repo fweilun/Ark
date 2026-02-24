@@ -63,7 +63,7 @@ func main() {
 	}
 
 	calendarStore := calendar.NewStore(dbPool)
-	calendarSvc := calendar.NewService(calendarStore)
+	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
