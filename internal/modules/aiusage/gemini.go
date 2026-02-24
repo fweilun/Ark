@@ -1,4 +1,4 @@
-package ai
+package aiusage
 
 import (
 	"context"
@@ -10,86 +10,113 @@ import (
 	"google.golang.org/api/option"
 )
 
-// GeminiProvider implements LLMProvider using Google's Gemini models.
-type GeminiProvider struct {
+const geminiModelName = "gemini-2.0-flash"
+
+// geminiClient is the private Gemini implementation of AIClient.
+// All Gemini-specific details (SDK types, model config, prompt engineering)
+// are contained here and never leaked to the service layer.
+type geminiClient struct {
 	client *genai.Client
 	model  *genai.GenerativeModel
 }
 
-// NewGeminiProvider initializes a new Gemini client.
-// apiKey should be provided from environment variables.
-func NewGeminiProvider(ctx context.Context, apiKey string) (*GeminiProvider, error) {
+// NewGeminiClient creates a ready-to-use AIClient backed by Gemini.
+// The caller must call Close() when the client is no longer needed.
+func NewGeminiClient(ctx context.Context, apiKey string) (AIClient, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, fmt.Errorf("gemini: missing api key")
+	}
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
+		return nil, fmt.Errorf("gemini: create client: %w", err)
 	}
 
-	// Use Gemini 2.0 Flash for low latency and cost efficiency.
-	model := client.GenerativeModel("gemini-2.0-flash")
-
-	// Force JSON response for structured parsing.
+	model := client.GenerativeModel(geminiModelName)
+	// Force structured JSON output and set a balanced temperature.
 	model.ResponseMIMEType = "application/json"
-
-	// Set a reasonable temperature for creative but structured output.
 	model.SetTemperature(0.4)
 
-	return &GeminiProvider{
-		client: client,
-		model:  model,
-	}, nil
+	return &geminiClient{client: client, model: model}, nil
 }
 
-// Close cleans up the Gemini client resources.
-func (p *GeminiProvider) Close() {
-	p.client.Close()
+// Close releases Gemini SDK resources.
+func (g *geminiClient) Close() {
+	g.client.Close()
 }
 
-// ParseUserIntent analyzes user input to extract ride-hailing intent.
-func (p *GeminiProvider) ParseUserIntent(ctx context.Context, userMessage string, currentContext map[string]string) (*IntentResult, error) {
-	// Construct a powerful system prompt with context injection.
-	systemPrompt := buildSystemPrompt(currentContext)
-
-	// Combine system prompt and user message.
-	// Note: While Gemini supports SystemInstruction, appending context directly to the prompt
-	// is often more flexible for dynamic context injection per request.
-	// We'll use a combined prompt approach here for clarity and context binding.
-
+// ParseUserIntent sends the user message (with dynamic context) to Gemini and
+// parses the structured JSON response into an IntentResult.
+func (g *geminiClient) ParseUserIntent(ctx context.Context, userMessage string, contextMap map[string]string) (*IntentResult, error) {
+	systemPrompt := buildSystemPrompt(contextMap)
 	fullPrompt := fmt.Sprintf("%s\n\nUser Message: %s", systemPrompt, userMessage)
 
-	resp, err := p.model.GenerateContent(ctx, genai.Text(fullPrompt))
+	resp, err := g.model.GenerateContent(ctx, genai.Text(fullPrompt))
 	if err != nil {
-		return nil, fmt.Errorf("gemini generation error: %w", err)
+		return nil, fmt.Errorf("gemini: generate content: %w", err)
 	}
-
 	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-		return nil, fmt.Errorf("no response candidates from Gemini")
+		return nil, fmt.Errorf("gemini: API returned no candidates")
 	}
 
-	// Extract text from the response parts.
-	var responseText strings.Builder
+	var sb strings.Builder
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if txt, ok := part.(genai.Text); ok {
-			responseText.WriteString(string(txt))
+			sb.WriteString(string(txt))
 		}
 	}
 
-	// Clean up potential markdown formatting (though json mode should handle this, safety first).
-	cleanJSON := cleanJSONString(responseText.String())
-
+	cleanJSON := cleanJSONString(sb.String())
 	var result IntentResult
 	if err := json.Unmarshal([]byte(cleanJSON), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %w. Raw: %s", err, cleanJSON)
+		return nil, fmt.Errorf("gemini: parse JSON response: %w. Raw: %s", err, cleanJSON)
 	}
-
 	return &result, nil
 }
 
-// PlanItinerary is a placeholder for V2.
-func (p *GeminiProvider) PlanItinerary(ctx context.Context, constraints string) (string, error) {
-	return "", fmt.Errorf("not implemented yet")
+// PlanItinerary is reserved for V2 advanced itinerary planning.
+func (g *geminiClient) PlanItinerary(_ context.Context, _ string) (string, error) {
+	return "", fmt.Errorf("PlanItinerary: not implemented yet")
 }
 
-// buildSystemPrompt constructs the instructions for the AI.
+// generateText is a low-level helper for plain text generation (used by Chat).
+func generateText(ctx context.Context, model *genai.GenerativeModel, message string) (string, error) {
+	if strings.TrimSpace(message) == "" {
+		return "", fmt.Errorf("gemini: empty message")
+	}
+	resp, err := model.GenerateContent(ctx, genai.Text(message))
+	if err != nil {
+		return "", fmt.Errorf("gemini: generate content: %w", err)
+	}
+	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+		return "", fmt.Errorf("gemini: API returned empty candidates")
+	}
+	var parts []string
+	for _, p := range resp.Candidates[0].Content.Parts {
+		if txt, ok := p.(genai.Text); ok && strings.TrimSpace(string(txt)) != "" {
+			parts = append(parts, string(txt))
+		}
+	}
+	if len(parts) == 0 {
+		return "", fmt.Errorf("gemini: API returned empty text parts")
+	}
+	return strings.Join(parts, "\n"), nil
+}
+
+// newGeminiModel is a lower-level helper kept for the Service.Chat path that
+// needs a direct model handle for plain-text generation.
+func newGeminiModel(ctx context.Context, apiKey string) (*genai.Client, *genai.GenerativeModel, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, nil, fmt.Errorf("gemini: missing api key")
+	}
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		return nil, nil, fmt.Errorf("gemini: create client: %w", err)
+	}
+	return client, client.GenerativeModel(geminiModelName), nil
+}
+
+// buildSystemPrompt constructs the full AI persona and rule-set prompt.
+// contextMap keys: "current_time", "user_location", "user_context_info".
 func buildSystemPrompt(ctxMap map[string]string) string {
 	currentTime := ctxMap["current_time"]
 	userLocation := ctxMap["user_location"]
@@ -263,7 +290,7 @@ RULES:
 `, currentTime, userLocation, userContextInfo)
 }
 
-// cleanJSONString removes markdown code blocks if present (e.g. ```json ... ```)
+// cleanJSONString removes markdown code fences that some models emit despite JSON mode.
 func cleanJSONString(input string) string {
 	input = strings.TrimSpace(input)
 	input = strings.TrimPrefix(input, "```json")

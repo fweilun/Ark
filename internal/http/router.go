@@ -21,6 +21,11 @@ func NewRouter(
 	matchingService *matching.Service,
 	locationService *location.Service,
 	pricingService *pricing.Service,
+<<<<<<< Updated upstream
+=======
+	aiService aiusage.Service,
+	notificationService *notification.Service,
+>>>>>>> Stashed changes
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())

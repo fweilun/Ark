@@ -1,6 +1,15 @@
-package ai
+package aiusage
+
+import "errors"
+
+// ErrInsufficientTokens is returned when a user has no tokens remaining for the current month.
+var ErrInsufficientTokens = errors.New("insufficient tokens")
+
+// DefaultTokens is the number of tokens granted per month.
+const DefaultTokens = 100
 
 // IntentResult captures the structured output from the AI model.
+// (Migrated from internal/ai/models.go)
 type IntentResult struct {
 	// Intent describes the user's primary goal.
 	// Valid values: "booking", "clarification", "chat", "completed".

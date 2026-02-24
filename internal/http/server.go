@@ -11,10 +11,19 @@ import (
 )
 
 type ServerDeps struct {
+<<<<<<< Updated upstream
 	Order    *order.Service
 	Matching *matching.Service
 	Location *location.Service
 	Pricing  *pricing.Service
+=======
+	Order        *order.Service
+	Matching     *matching.Service
+	Location     *location.Service
+	Pricing      *pricing.Service
+	AI           aiusage.Service
+	Notification *notification.Service
+>>>>>>> Stashed changes
 }
 
 type Server struct {

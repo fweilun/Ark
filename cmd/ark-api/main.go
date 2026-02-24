@@ -46,12 +46,31 @@ func main() {
     locationStore := location.NewStore(dbPool, redisClient)
     locationSvc := location.NewService(locationStore)
 
+<<<<<<< Updated upstream
     handler := httptransport.NewServer(httptransport.ServerDeps{
         Order:    orderSvc,
         Matching: matchingSvc,
         Location: locationSvc,
         Pricing:  pricingSvc,
     })
+=======
+	aiStore := aiusage.NewStore(dbPool)
+	aiClient, err := aiusage.NewGeminiClient(ctx, cfg.AI.GeminiKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	aiSvc, err := aiusage.NewService(aiusage.ServiceConfig{
+		Store:     aiStore,
+		AIClient:  aiClient,
+		GeminiKey: cfg.AI.GeminiKey,
+		// PlannerService and OrderService will be wired in once
+		// the planner DB migration is applied.
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer aiSvc.Close()
+>>>>>>> Stashed changes
 
     server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
 
