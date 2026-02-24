@@ -13,6 +13,7 @@ import (
 	httptransport "ark/internal/http"
 	"ark/internal/infra"
 	"ark/internal/modules/aiusage"
+	"ark/internal/modules/calendar"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -61,6 +62,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	calendarStore := calendar.NewStore(dbPool)
+	calendarSvc := calendar.NewService(calendarStore)
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -68,6 +72,7 @@ func main() {
 		Pricing:      pricingSvc,
 		AI:           aiSvc,
 		Notification: notificationSvc,
+		Calendar:     calendarSvc,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
