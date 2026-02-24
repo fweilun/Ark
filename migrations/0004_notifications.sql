@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS user_fcm_tokens (
 );
 
 -- 索引：依 user_id 快速查詢
-CREATE INDEX idx_user_fcm_tokens_user_id ON user_fcm_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_user_id ON user_fcm_tokens(user_id);
 
 -- 索引：供清理過期裝置使用
-CREATE INDEX idx_user_fcm_tokens_last_seen ON user_fcm_tokens(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_user_fcm_tokens_last_seen ON user_fcm_tokens(last_seen_at);
