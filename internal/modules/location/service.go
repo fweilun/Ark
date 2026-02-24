@@ -3,7 +3,6 @@ package location
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"ark/internal/types"
@@ -23,8 +22,9 @@ type Update struct {
 	Position types.Point
 }
 
+// Update caches the user's current position in Redis GEO.
 func (s *Service) Update(ctx context.Context, u Update) error {
-	return errors.New("not implemented")
+	return s.store.SetGeo(ctx, u.UserID, u.Position, u.UserType)
 }
 
 func (s *Service) FlushSnapshot(ctx context.Context, u Update) error {

@@ -255,6 +255,16 @@ func (s *Service) Get(ctx context.Context, id types.ID) (*Order, error) {
 	return s.store.Get(ctx, id)
 }
 
+// ListWaiting returns all instant orders in 'waiting' status.
+func (s *Service) ListWaiting(ctx context.Context) ([]*Order, error) {
+	return s.store.ListWaiting(ctx)
+}
+
+// ListScheduledOpen returns all orders in 'scheduled' status.
+func (s *Service) ListScheduledOpen(ctx context.Context) ([]*Order, error) {
+	return s.store.ListScheduledOpen(ctx)
+}
+
 func (s *Service) Deny(ctx context.Context, cmd DenyCommand) error {
 	return s.applyTransition(ctx, cmd.OrderID, transitionParams{
 		to:        StatusWaiting,
