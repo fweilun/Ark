@@ -366,8 +366,43 @@ func (s *Store) ExpireOverdueScheduled(ctx context.Context) error {
 	return err
 }
 
-// scanOrderRows is a helper that scans the subset of columns returned by ListScheduledByPassenger
-// and ListAvailableScheduled.
+// ListWaiting returns all instant orders currently in 'waiting' status, oldest first.
+func (s *Store) ListWaiting(ctx context.Context) ([]*Order, error) {
+	rows, err := s.db.Query(ctx, `
+        SELECT id, passenger_id, driver_id, status, status_version,
+               pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+               ride_type, estimated_fee,
+               created_at, scheduled_at, cancel_deadline_at, incentive_bonus, assigned_at,
+               order_type, schedule_window_mins
+        FROM orders
+        WHERE status = 'waiting'
+        ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanOrderRows(rows)
+}
+
+// ListScheduledOpen returns all orders currently in 'scheduled' status, oldest first.
+func (s *Store) ListScheduledOpen(ctx context.Context) ([]*Order, error) {
+	rows, err := s.db.Query(ctx, `
+        SELECT id, passenger_id, driver_id, status, status_version,
+               pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+               ride_type, estimated_fee,
+               created_at, scheduled_at, cancel_deadline_at, incentive_bonus, assigned_at,
+               order_type, schedule_window_mins
+        FROM orders
+        WHERE status = 'scheduled'
+        ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanOrderRows(rows)
+}
+// scanOrderRows is a shared helper that scans the column set returned by ListScheduledByPassenger,
+// ListAvailableScheduled, ListWaiting, and ListScheduledOpen.
 func scanOrderRows(rows interface {
 	Next() bool
 	Scan(...any) error

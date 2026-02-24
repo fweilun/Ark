@@ -44,7 +44,7 @@ func main() {
 	orderSvc := order.NewService(orderStore, pricingSvc)
 
 	matchingStore := matching.NewStore(redisClient)
-	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
+	matchingSvc := matching.NewService(matchingStore, orderSvc, orderSvc, nil, cfg.Matching)
 
 	locationStore := location.NewStore(dbPool, redisClient)
 	locationSvc := location.NewService(locationStore)

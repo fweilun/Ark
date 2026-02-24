@@ -2,29 +2,42 @@
 package handlers
 
 import (
-    "net/http"
+	"net/http"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 
-    "ark/internal/modules/location"
-    "ark/internal/types"
+	"ark/internal/modules/location"
+	"ark/internal/types"
 )
 
 type LocationHandler struct {
-    location *location.Service
+	location *location.Service
 }
 
 func NewLocationHandler(svc *location.Service) *LocationHandler {
-    return &LocationHandler{location: svc}
+	return &LocationHandler{location: svc}
+}
+
+type updateLocationReq struct {
+	Lat float64 `json:"lat"`
+	Lng float64 `json:"lng"`
 }
 
 func (h *LocationHandler) Update(c *gin.Context) {
-    id := c.Param("id")
-    if id == "" {
-        writeError(c, http.StatusBadRequest, "missing id")
-        return
-    }
-    // For MVP, no body parsing yet
-    _ = h.location.Update(c.Request.Context(), location.Update{UserID: types.ID(id), UserType: "driver"})
-    writeJSON(c, http.StatusOK, map[string]any{"status": "ok"})
+	id := c.Param("id")
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "missing id")
+		return
+	}
+	var req updateLocationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "invalid json")
+		return
+	}
+	_ = h.location.Update(c.Request.Context(), location.Update{
+		UserID:   types.ID(id),
+		UserType: "driver",
+		Position: types.Point{Lat: req.Lat, Lng: req.Lng},
+	})
+	writeJSON(c, http.StatusOK, map[string]any{"status": "ok"})
 }
