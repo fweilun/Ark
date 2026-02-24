@@ -11,6 +11,7 @@ import (
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
+	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 )
@@ -23,6 +24,7 @@ func NewRouter(
 	locationService *location.Service,
 	pricingService *pricing.Service,
 	aiService *aiusage.Service,
+	notificationService *notification.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -59,6 +61,12 @@ func NewRouter(
 	// location udpate
 	locationHandler := handlers.NewLocationHandler(locationService)
 	r.PUT("/api/drivers/:id/location", locationHandler.Update)
+
+	// notifications
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	r.POST("/api/notifications/register", notificationHandler.EnsureDevice)
+	// [TODO] for staff only
+	// r.POST("/api/notifications/send", notificationHandler.SendNotification)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")

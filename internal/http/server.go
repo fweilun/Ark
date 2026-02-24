@@ -7,16 +7,18 @@ import (
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
+	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 )
 
 type ServerDeps struct {
-	Order    *order.Service
-	Matching *matching.Service
-	Location *location.Service
-	Pricing  *pricing.Service
-	AI       *aiusage.Service
+	Order        *order.Service
+	Matching     *matching.Service
+	Location     *location.Service
+	Pricing      *pricing.Service
+	AI           *aiusage.Service
+	Notification *notification.Service
 }
 
 type Server struct {
@@ -24,7 +26,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI)
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification)
 	return &Server{Engine: engine}
 }
 

@@ -3,6 +3,7 @@ module ark
 go 1.24.0
 
 require (
+	firebase.google.com/go/v4 v4.19.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/generative-ai-go v0.20.1
 	github.com/jackc/pgx/v5 v5.5.5
@@ -23,7 +24,6 @@ require (
 	cloud.google.com/go/longrunning v0.8.0 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.56.0 // indirect
-	firebase.google.com/go/v4 v4.19.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect

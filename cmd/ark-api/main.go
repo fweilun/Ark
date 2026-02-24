@@ -15,6 +15,7 @@ import (
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
+	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 )
@@ -54,12 +55,19 @@ func main() {
 	}
 	defer aiSvc.Close()
 
+	notificationStore := notification.NewStore(dbPool)
+	notificationSvc, err := notification.NewService(notificationStore, []byte(cfg.Notification.FirebaseCredentialsJSON))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
-		Order:    orderSvc,
-		Matching: matchingSvc,
-		Location: locationSvc,
-		Pricing:  pricingSvc,
-		AI:       aiSvc,
+		Order:        orderSvc,
+		Matching:     matchingSvc,
+		Location:     locationSvc,
+		Pricing:      pricingSvc,
+		AI:           aiSvc,
+		Notification: notificationSvc,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
