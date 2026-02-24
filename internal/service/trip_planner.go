@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"ark/internal/ai"
 	"ark/internal/maps"
+	"ark/internal/modules/aiusage"
 )
 
 // DefaultTrafficBuffer is the extra time added to ensure on-time arrival.
@@ -16,14 +16,14 @@ const DefaultTrafficBuffer = 10 * time.Minute
 
 // TripPlanner orchestrates the AI intent parsing and Google Maps routing.
 type TripPlanner struct {
-	aiProvider    *ai.GeminiProvider
+	aiProvider    aiusage.AIClient
 	routeService  *maps.RouteService
 	placesService *maps.PlacesService
 	loc           *time.Location
 }
 
 // NewTripPlanner creates a TripPlanner with initialized dependencies.
-func NewTripPlanner(aiProvider *ai.GeminiProvider, routeService *maps.RouteService, placesService *maps.PlacesService) (*TripPlanner, error) {
+func NewTripPlanner(aiProvider aiusage.AIClient, routeService *maps.RouteService, placesService *maps.PlacesService) (*TripPlanner, error) {
 	loc, err := time.LoadLocation("Asia/Taipei")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Asia/Taipei location: %w", err)
@@ -45,7 +45,7 @@ func resolveCarType(passengerCount int, hasPet bool) (carType string, specialNot
 	case passengerCount >= 5 && passengerCount <= 6:
 		return "六人座大車", ""
 	case passengerCount > 6:
-		return "一般車型", fmt.Sprintf("❗ 由於人數超過 6 人，請問需要為您安排多輛車嗎？")
+		return "一般車型", "❗ 由於人數超過 6 人，請問需要為您安排多輛車嗎？"
 	default:
 		return "一般車型", ""
 	}

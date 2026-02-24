@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"ark/internal/ai"
 	"ark/internal/maps"
+	"ark/internal/modules/aiusage"
 	"ark/internal/service"
 )
 
@@ -21,7 +21,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	provider, err := ai.NewGeminiProvider(ctx, apiKey)
+	provider, err := aiusage.NewGeminiClient(ctx, apiKey)
 	if err != nil {
 		log.Fatalf("Failed to initialize AI provider: %v", err)
 	}

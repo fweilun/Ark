@@ -49,7 +49,15 @@ func main() {
 	locationSvc := location.NewService(locationStore)
 
 	aiStore := aiusage.NewStore(dbPool)
-	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
+	aiClient, err := aiusage.NewGeminiClient(ctx, cfg.AI.GeminiKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	aiSvc, err := aiusage.NewService(aiusage.ServiceConfig{
+		Store:     aiStore,
+		AIClient:  aiClient,
+		GeminiKey: cfg.AI.GeminiKey,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
