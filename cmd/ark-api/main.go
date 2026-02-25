@@ -83,7 +83,7 @@ func main() {
 		}
 		tokenVerifier = authClient
 	} else {
-		log.Println("WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
+		log.Printf("SECURITY WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
 	}
 
 	handler := httptransport.NewServer(httptransport.ServerDeps{
