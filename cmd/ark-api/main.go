@@ -19,6 +19,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/vehicle"
 )
 
 func main() {
@@ -65,6 +66,9 @@ func main() {
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
+	vehicleStore := vehicle.NewStore(dbPool)
+	vehicleSvc := vehicle.NewService(vehicleStore)
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -73,6 +77,7 @@ func main() {
 		AI:           aiSvc,
 		Notification: notificationSvc,
 		Calendar:     calendarSvc,
+		Vehicle:      vehicleSvc,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
