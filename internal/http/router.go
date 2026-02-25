@@ -14,6 +14,7 @@ import (
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
+	"ark/internal/modules/payment"
 	"ark/internal/modules/pricing"
 )
 
@@ -27,6 +28,7 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	paymentService payment.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -82,6 +84,13 @@ func NewRouter(
 	r.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
 	r.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
 	r.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+
+	// payment — requires authentication (Auth middleware applied globally above)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
+	r.POST("/api/v1/payments", paymentHandler.Create)
+	r.GET("/api/v1/payments/:paymentId", paymentHandler.GetByID)
+	r.GET("/api/v1/trips/:tripId/payments", paymentHandler.GetByTrip)
+	r.POST("/api/v1/payments/callback", paymentHandler.Callback)
 
 	return r
 }
