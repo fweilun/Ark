@@ -1,4 +1,4 @@
--- README: Drivers table for driver-specific attributes. driver_id is a foreign key to users.user_id.
+-- README: Drivers table for driver-specific attributes. driver_id is the primary identifier for a driver.
 
 CREATE TABLE IF NOT EXISTS drivers (
     driver_id    TEXT PRIMARY KEY,
