@@ -4,6 +4,9 @@ package http
 import (
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/location"
@@ -14,6 +17,8 @@ import (
 )
 
 type ServerDeps struct {
+	DB           *pgxpool.Pool
+	Redis        *redis.Client
 	Order        *order.Service
 	Matching     *matching.Service
 	Location     *location.Service
@@ -28,7 +33,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar)
+	engine := NewRouter(deps.DB, deps.Redis, deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar)
 	return &Server{Engine: engine}
 }
 

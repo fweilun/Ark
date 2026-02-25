@@ -2,9 +2,9 @@
 package http
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
@@ -20,6 +20,8 @@ import (
 // [TODO] We might want to check if the user have the permission to access the order
 // [TODO] Satisfy minimum authentication principle.
 func NewRouter(
+	db *pgxpool.Pool,
+	rdb *redis.Client,
 	orderService *order.Service,
 	matchingService *matching.Service,
 	locationService *location.Service,
@@ -34,6 +36,11 @@ func NewRouter(
 
 	r := gin.Default()
 	r.Use(middleware.Auth())
+
+	healthHandler := handlers.NewHealthHandler(db, rdb, []string{
+		"order", "matching", "location", "pricing", "ai", "notification", "calendar",
+	})
+	r.GET("/health", healthHandler.Check)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	// passenger — instant order
@@ -69,10 +76,6 @@ func NewRouter(
 	r.POST("/api/notifications/register", notificationHandler.EnsureDevice)
 	// [TODO] for staff only
 	// r.POST("/api/notifications/send", notificationHandler.SendNotification)
-
-	r.GET("/health", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
-	})
 
 	// calendar
 	calendarHandler := handlers.NewCalendarHandler(calendarService)

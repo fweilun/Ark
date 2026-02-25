@@ -66,6 +66,8 @@ func main() {
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
 	handler := httptransport.NewServer(httptransport.ServerDeps{
+		DB:           dbPool,
+		Redis:        redisClient,
 		Order:        orderSvc,
 		Matching:     matchingSvc,
 		Location:     locationSvc,
