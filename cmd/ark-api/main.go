@@ -14,6 +14,7 @@ import (
 	"ark/internal/infra"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -65,6 +66,9 @@ func main() {
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
+	driverStore := driver.NewStore(dbPool)
+	driverSvc := driver.NewService(driverStore)
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -73,6 +77,7 @@ func main() {
 		AI:           aiSvc,
 		Notification: notificationSvc,
 		Calendar:     calendarSvc,
+		Driver:       driverSvc,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}

@@ -10,6 +10,7 @@ import (
 	"ark/internal/http/middleware"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -27,6 +28,7 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	driverService *driver.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -82,6 +84,11 @@ func NewRouter(
 	r.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
 	r.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
 	r.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+
+	// driver profile & status (auth required; driver_id always from context)
+	driverHandler := driver.NewHandler(driverService)
+	r.PUT("/api/v1/driver/create", driverHandler.Create)
+	r.PUT("/api/v1/driver/status", driverHandler.UpdateStatus)
 
 	return r
 }

@@ -6,6 +6,7 @@ import (
 
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -21,6 +22,7 @@ type ServerDeps struct {
 	AI           *aiusage.Service
 	Notification *notification.Service
 	Calendar     *calendar.Service
+	Driver       *driver.Service
 }
 
 type Server struct {
@@ -28,7 +30,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar)
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar, deps.Driver)
 	return &Server{Engine: engine}
 }
 
