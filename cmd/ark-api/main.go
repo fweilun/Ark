@@ -3,11 +3,14 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ark/internal/config"
 	httptransport "ark/internal/http"
@@ -18,6 +21,7 @@ import (
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
+	"ark/internal/modules/payment"
 	"ark/internal/modules/pricing"
 )
 
@@ -65,6 +69,10 @@ func main() {
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
+	paymentStore := payment.NewStore(dbPool)
+	// [TODO] Replace stubGateway with a real payment provider (e.g. Stripe, TapPay) before production.
+	paymentSvc := payment.NewService(paymentStore, &stubGateway{})
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -73,6 +81,7 @@ func main() {
 		AI:           aiSvc,
 		Notification: notificationSvc,
 		Calendar:     calendarSvc,
+		Payment:      paymentSvc,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
@@ -85,4 +94,18 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+// stubGateway is a no-op PaymentGateway used until a real provider is integrated.
+// [TODO] Replace with a real gateway implementation before production.
+type stubGateway struct{}
+
+func (g *stubGateway) Charge(_ context.Context, _ *payment.ChargeRequest) (*payment.ChargeResponse, error) {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return &payment.ChargeResponse{
+		TransactionID: "stub-tx-" + hex.EncodeToString(b[:]),
+		Success:       true,
+		PaidAt:        time.Now(),
+	}, nil
 }
