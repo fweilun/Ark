@@ -29,6 +29,9 @@ type TokenVerifier interface {
 func Auth(verifier TokenVerifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if verifier == nil {
+			// Dev mode: allow all requests through but inject a default user_id
+			ctx := context.WithValue(c.Request.Context(), contextUserIDKey{}, "dev-user-id")
+			c.Request = c.Request.WithContext(ctx)
 			c.Next()
 			return
 		}
