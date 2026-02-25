@@ -10,11 +10,13 @@ import (
 	"ark/internal/http/middleware"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/user"
 )
 
 // [TODO] We might want to check if the user have the permission to access the order
@@ -27,6 +29,8 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	userService *user.Service,
+	driverService *driver.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -82,6 +86,22 @@ func NewRouter(
 	r.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
 	r.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
 	r.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+
+	// user
+	userHandler := handlers.NewUserHandler(userService)
+	r.POST("/api/v1/users", userHandler.Create)
+	r.GET("/api/v1/users/:id", userHandler.Get)
+	r.PUT("/api/v1/users/:id", userHandler.Update)
+	r.DELETE("/api/v1/users/:id", userHandler.Delete)
+
+	// driver
+	driverHandler := handlers.NewDriverHandler(driverService)
+	r.POST("/api/v1/drivers", driverHandler.Create)
+	r.GET("/api/v1/drivers/:id", driverHandler.Get)
+	r.PUT("/api/v1/drivers/:id", driverHandler.Update)
+	r.DELETE("/api/v1/drivers/:id", driverHandler.Delete)
+	r.PUT("/api/v1/driver/rating", driverHandler.UpdateRating)
+	r.PUT("/api/v1/driver/status", driverHandler.UpdateStatus)
 
 	return r
 }
