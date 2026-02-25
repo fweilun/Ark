@@ -40,10 +40,6 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.Name == "" || req.Email == "" || req.UserType == "" {
-		writeError(c, http.StatusBadRequest, "missing fields")
-		return
-	}
 	u, err := h.svc.Create(c.Request.Context(), user.CreateCommand{
 		Name:     req.Name,
 		Email:    req.Email,
