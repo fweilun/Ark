@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/db"
@@ -221,6 +222,33 @@ func (s *FirebaseService) GetNearbyPassengers(ctx context.Context, lat, lng, rad
 
 	sortByDistance(result, func(p PassengerLocation) float64 { return p.Distance })
 	return result, nil
+}
+
+// WriteLocation writes the user's position to the appropriate Firebase RTDB
+// node for front-end real-time listening. It is called as part of the
+// dual-write in Service.Update.
+func (s *FirebaseService) WriteLocation(ctx context.Context, id types.ID, pos types.Point, userType string) error {
+	node, status := rtdbNodeAndStatus(userType)
+	ref := s.dbClient.NewRef(node + "/" + string(id))
+	entry := map[string]interface{}{
+		"lat":       pos.Lat,
+		"lng":       pos.Lng,
+		"status":    status,
+		"timestamp": time.Now().UnixMilli(),
+	}
+	if err := ref.Set(ctx, entry); err != nil {
+		return fmt.Errorf("Firebase WriteLocation %s %s: %w", userType, id, err)
+	}
+	return nil
+}
+
+// rtdbNodeAndStatus returns the RTDB node path and the active status string
+// for a given user type.
+func rtdbNodeAndStatus(userType string) (node, status string) {
+	if userType == "passenger" {
+		return "passenger_locations", "looking_for_ride"
+	}
+	return "driver_locations", "online"
 }
 
 // NotifyDriverNewOrder sends an FCM data message to the specified driver's

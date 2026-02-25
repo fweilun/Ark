@@ -46,8 +46,13 @@ func main() {
 	matchingStore := matching.NewStore(redisClient)
 	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
 
+	firebaseSvc, err := location.NewFirebaseService(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	locationStore := location.NewStore(dbPool, redisClient)
-	locationSvc := location.NewService(locationStore)
+	locationSvc := location.NewService(locationStore, firebaseSvc)
 
 	aiStore := aiusage.NewStore(dbPool)
 	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
