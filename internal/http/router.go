@@ -15,6 +15,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/vehicle"
 )
 
 // [TODO] We might want to check if the user have the permission to access the order
@@ -27,6 +28,7 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	vehicleService *vehicle.Service,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -82,6 +84,13 @@ func NewRouter(
 	r.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
 	r.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
 	r.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+
+	// vehicle — driver registers/manages their vehicle; driver_id injected from auth context
+	vehicleHandler := handlers.NewVehicleHandler(vehicleService)
+	r.POST("/api/v1/vehicle", vehicleHandler.Create)
+	r.GET("/api/v1/vehicle/me", vehicleHandler.GetMe)
+	r.PATCH("/api/v1/vehicle", vehicleHandler.Update)
+	r.DELETE("/api/v1/vehicle", vehicleHandler.Delete)
 
 	return r
 }
