@@ -223,6 +223,23 @@ func (s *FirebaseService) GetNearbyPassengers(ctx context.Context, lat, lng, rad
 	return result, nil
 }
 
+// GetAllDrivers returns all currently online drivers from Firebase RTDB.
+func (s *FirebaseService) GetAllDrivers(ctx context.Context) ([]DriverLocation, error) {
+	data, err := s.queryActiveDrivers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]DriverLocation, 0, len(data))
+	for driverID, entry := range data {
+		result = append(result, DriverLocation{
+			DriverID: types.ID(driverID),
+			Lat:      entry.Lat,
+			Lng:      entry.Lng,
+		})
+	}
+	return result, nil
+}
+
 // NotifyDriverNewOrder sends an FCM data message to the specified driver's
 // device. The deviceToken must be resolved by the caller.
 func (s *FirebaseService) NotifyDriverNewOrder(ctx context.Context, deviceToken string, info OrderInfo) error {

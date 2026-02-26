@@ -49,8 +49,26 @@ func main() {
 	orderStore := order.NewStore(dbPool)
 	orderSvc := order.NewService(orderStore, pricingSvc)
 
-	matchingStore := matching.NewStore(redisClient)
-	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
+	notificationStore := notification.NewStore(dbPool)
+	notificationSvc, err := notification.NewService(notificationStore, []byte(cfg.Notification.FirebaseCredentialsJSON))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	matchingStore := matching.NewStore(redisClient, dbPool)
+
+	// Optionally initialise Firebase location service for driver geo-queries.
+	// If Firebase credentials are unavailable, notification scheduling is skipped.
+	var driverLocator matching.DriverLocator
+	if cfg.Notification.FirebaseCredentialsJSON != "" {
+		if firebaseLocSvc, locErr := location.NewFirebaseService(ctx); locErr != nil {
+			log.Printf("warning: could not initialise Firebase location service for matching: %v", locErr)
+		} else {
+			driverLocator = firebaseLocSvc
+		}
+	}
+
+	matchingSvc := matching.NewService(matchingStore, orderSvc, notificationSvc, driverLocator, cfg.Matching)
 
 	locationStore := location.NewStore(dbPool, redisClient)
 	locationSvc := location.NewService(locationStore)
@@ -61,12 +79,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer aiSvc.Close()
-
-	notificationStore := notification.NewStore(dbPool)
-	notificationSvc, err := notification.NewService(notificationStore, []byte(cfg.Notification.FirebaseCredentialsJSON))
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
@@ -108,6 +120,7 @@ func main() {
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
 
 	go matchingSvc.RunScheduler(ctx)
+	go matchingSvc.RunNotificationScheduler(ctx)
 	go orderSvc.RunTimeoutMonitor(ctx)
 	go orderSvc.RunScheduleIncentiveTicker(ctx)
 	go orderSvc.RunScheduleExpireTicker(ctx)

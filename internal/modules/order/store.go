@@ -366,6 +366,27 @@ func (s *Store) ExpireOverdueScheduled(ctx context.Context) error {
 	return err
 }
 
+// ListUrgentPendingOrders returns all orders with status 'scheduled' or 'waiting' that have
+// not yet passed their scheduled time, ordered by urgency (earliest scheduled_at / created_at first).
+// This is used by the matching module to find orders that need driver notification.
+func (s *Store) ListUrgentPendingOrders(ctx context.Context) ([]*Order, error) {
+	rows, err := s.db.Query(ctx, `
+        SELECT id, passenger_id, driver_id, status, status_version,
+               pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+               ride_type, estimated_fee,
+               created_at, scheduled_at, cancel_deadline_at, incentive_bonus, assigned_at,
+               order_type, schedule_window_mins
+        FROM orders
+        WHERE status IN ('scheduled', 'waiting')
+          AND (scheduled_at IS NULL OR scheduled_at > NOW())
+        ORDER BY COALESCE(scheduled_at, created_at) ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanOrderRows(rows)
+}
+
 // scanOrderRows is a helper that scans the subset of columns returned by ListScheduledByPassenger
 // and ListAvailableScheduled.
 func scanOrderRows(rows interface {
