@@ -4,6 +4,7 @@ package http
 import (
 	"net/http"
 
+	"ark/internal/http/middleware"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/driver"
@@ -12,6 +13,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/user"
 )
 
 type ServerDeps struct {
@@ -23,6 +25,8 @@ type ServerDeps struct {
 	Notification *notification.Service
 	Calendar     *calendar.Service
 	Driver       *driver.Service
+	User         *user.Service
+	Auth         middleware.TokenVerifier // Firebase token verifier; nil disables auth (dev mode)
 }
 
 type Server struct {
@@ -30,7 +34,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar, deps.Driver)
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar, deps.Driver, deps.User, deps.Auth)
 	return &Server{Engine: engine}
 }
 

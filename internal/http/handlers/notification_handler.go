@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/middleware"
 	"ark/internal/modules/notification"
 	"ark/internal/types"
 )
@@ -22,31 +23,31 @@ func NewNotificationHandler(svc *notification.Service) *NotificationHandler {
 }
 
 type ensureDeviceReq struct {
-	UserID   string `json:"user_id"`
 	FCMToken string `json:"fcm_token"`
 	Platform string `json:"platform"`
 	DeviceID string `json:"device_id,omitempty"`
 }
 
 // EnsureDevice handles POST /api/notifications/register.
-// It creates the device token entry if it does not exist, or updates it if it does.
+// The authenticated user_id is taken from the request context (set by auth middleware).
 func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var req ensureDeviceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
 	}
 
-	req.UserID = strings.TrimSpace(req.UserID)
 	req.FCMToken = strings.TrimSpace(req.FCMToken)
 	req.Platform = strings.TrimSpace(req.Platform)
 
-	if req.UserID == "" || req.FCMToken == "" || req.Platform == "" {
-		writeError(c, http.StatusBadRequest, "missing user_id, fcm_token, or platform")
-		return
-	}
-	if !isValidID(req.UserID) {
-		writeError(c, http.StatusBadRequest, "invalid user_id")
+	if req.FCMToken == "" || req.Platform == "" {
+		writeError(c, http.StatusBadRequest, "missing fcm_token or platform")
 		return
 	}
 
@@ -57,7 +58,7 @@ func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.EnsureDevice(c.Request.Context(), types.ID(req.UserID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
+	if err := h.svc.EnsureDevice(c.Request.Context(), types.ID(userID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
 		writeError(c, http.StatusInternalServerError, "internal error")
 		return
 	}

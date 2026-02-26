@@ -2,11 +2,13 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/middleware"
 	"ark/internal/modules/order"
 	"ark/internal/types"
 )
@@ -20,30 +22,30 @@ func NewOrderHandler(svc *order.Service) *OrderHandler {
 }
 
 type createOrderReq struct {
-	PassengerID string  `json:"passenger_id"`
-	PickupLat   float64 `json:"pickup_lat"`
-	PickupLng   float64 `json:"pickup_lng"`
-	DropoffLat  float64 `json:"dropoff_lat"`
-	DropoffLng  float64 `json:"dropoff_lng"`
-	RideType    string  `json:"ride_type"`
+	PickupLat  float64 `json:"pickup_lat"`
+	PickupLng  float64 `json:"pickup_lng"`
+	DropoffLat float64 `json:"dropoff_lat"`
+	DropoffLng float64 `json:"dropoff_lng"`
+	RideType   string  `json:"ride_type"`
 }
 
 func (h *OrderHandler) Create(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req createOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.PassengerID == "" || req.RideType == "" {
+	if req.RideType == "" {
 		writeError(c, http.StatusBadRequest, "missing fields")
 		return
 	}
-	if !isValidID(req.PassengerID) {
-		writeError(c, http.StatusBadRequest, "invalid passenger_id")
-		return
-	}
 	id, err := h.order.Create(c.Request.Context(), order.CreateCommand{
-		PassengerID: types.ID(req.PassengerID),
+		PassengerID: types.ID(userID),
 		Pickup:      types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
 		Dropoff:     types.Point{Lat: req.DropoffLat, Lng: req.DropoffLng},
 		RideType:    req.RideType,
@@ -142,13 +144,9 @@ func (h *OrderHandler) Match(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	driverID := c.Query("driver_id")
-	if driverID == "" {
-		writeError(c, http.StatusBadRequest, "missing driver_id")
-		return
-	}
-	if !isValidID(driverID) {
-		writeError(c, http.StatusBadRequest, "invalid driver_id")
+	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Match(c.Request.Context(), order.MatchCommand{
@@ -172,13 +170,9 @@ func (h *OrderHandler) Accept(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	driverID := c.Query("driver_id")
-	if driverID == "" {
-		writeError(c, http.StatusBadRequest, "missing driver_id")
-		return
-	}
-	if !isValidID(driverID) {
-		writeError(c, http.StatusBadRequest, "invalid driver_id")
+	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
@@ -202,13 +196,9 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	driverID := c.Query("driver_id")
-	if driverID == "" {
-		writeError(c, http.StatusBadRequest, "missing driver_id")
-		return
-	}
-	if !isValidID(driverID) {
-		writeError(c, http.StatusBadRequest, "invalid driver_id")
+	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Deny(c.Request.Context(), order.DenyCommand{
@@ -299,7 +289,6 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 // --- Scheduled-order endpoints ---
 
 type createScheduledReq struct {
-	PassengerID        string  `json:"passenger_id"`
 	PickupLat          float64 `json:"pickup_lat"`
 	PickupLng          float64 `json:"pickup_lng"`
 	DropoffLat         float64 `json:"dropoff_lat"`
@@ -311,17 +300,18 @@ type createScheduledReq struct {
 
 // CreateScheduled handles POST /api/orders/scheduled.
 func (h *OrderHandler) CreateScheduled(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req createScheduledReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.PassengerID == "" || req.RideType == "" || req.ScheduledAt == "" {
+	if req.RideType == "" || req.ScheduledAt == "" {
 		writeError(c, http.StatusBadRequest, "missing fields")
-		return
-	}
-	if !isValidID(req.PassengerID) {
-		writeError(c, http.StatusBadRequest, "invalid passenger_id")
 		return
 	}
 	if req.ScheduleWindowMins <= 0 {
@@ -334,7 +324,7 @@ func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 		return
 	}
 	id, err := h.order.CreateScheduled(c.Request.Context(), order.CreateScheduledCommand{
-		PassengerID:        types.ID(req.PassengerID),
+		PassengerID:        types.ID(userID),
 		Pickup:             types.Point{Lat: req.PickupLat, Lng: req.PickupLng},
 		Dropoff:            types.Point{Lat: req.DropoffLat, Lng: req.DropoffLng},
 		RideType:           req.RideType,
@@ -348,15 +338,11 @@ func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	writeJSON(c, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusScheduled})
 }
 
-// ListScheduledByPassenger handles GET /api/orders/scheduled?passenger_id=...
+// ListScheduledByPassenger handles GET /api/orders/scheduled.
 func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
-	passengerID := c.Query("passenger_id")
-	if passengerID == "" {
-		writeError(c, http.StatusBadRequest, "missing passenger_id")
-		return
-	}
-	if !isValidID(passengerID) {
-		writeError(c, http.StatusBadRequest, "invalid passenger_id")
+	passengerID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	orders, err := h.order.ListScheduledByPassenger(c.Request.Context(), types.ID(passengerID))
@@ -397,10 +383,6 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 	writeJSON(c, http.StatusOK, map[string]any{"orders": orders})
 }
 
-type claimReq struct {
-	DriverID string `json:"driver_id"`
-}
-
 // Claim handles POST /api/orders/:id/claim (driver claims a scheduled order).
 func (h *OrderHandler) Claim(c *gin.Context) {
 	id := c.Param("id")
@@ -412,18 +394,14 @@ func (h *OrderHandler) Claim(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	var req claimReq
-	if err := c.ShouldBindJSON(&req); err != nil || req.DriverID == "" {
-		writeError(c, http.StatusBadRequest, "missing driver_id")
-		return
-	}
-	if !isValidID(req.DriverID) {
-		writeError(c, http.StatusBadRequest, "invalid driver_id")
+	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.ClaimScheduled(c.Request.Context(), order.ClaimScheduledCommand{
 		OrderID:  types.ID(id),
-		DriverID: types.ID(req.DriverID),
+		DriverID: types.ID(driverID),
 	})
 	if err != nil {
 		writeOrderError(c, err)
@@ -433,8 +411,7 @@ func (h *OrderHandler) Claim(c *gin.Context) {
 }
 
 type driverCancelReq struct {
-	DriverID string `json:"driver_id"`
-	Reason   string `json:"reason"`
+	Reason string `json:"reason"`
 }
 
 // DriverCancel handles POST /api/orders/:id/driver-cancel (driver cancels a claimed scheduled order).
@@ -448,18 +425,19 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
-	var req driverCancelReq
-	if err := c.ShouldBindJSON(&req); err != nil || req.DriverID == "" {
-		writeError(c, http.StatusBadRequest, "missing driver_id")
+	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if !isValidID(req.DriverID) {
-		writeError(c, http.StatusBadRequest, "invalid driver_id")
+	var req driverCancelReq
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		writeError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{
 		OrderID:  types.ID(id),
-		DriverID: types.ID(req.DriverID),
+		DriverID: types.ID(driverID),
 		Reason:   req.Reason,
 	})
 	if err != nil {
