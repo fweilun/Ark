@@ -25,6 +25,14 @@ func (h *LocationHandler) Update(c *gin.Context) {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+
+	// If the route includes a path parameter (e.g. /api/drivers/:id/location),
+	// ensure it matches the authenticated user ID to avoid discrepancies.
+	pathID := types.ID(c.Param("id"))
+	if pathID != "" && pathID != types.ID(userID) {
+		writeError(c, http.StatusForbidden, "forbidden")
+		return
+	}
 	// For MVP, no body parsing yet
 	_ = h.location.Update(c.Request.Context(), location.Update{UserID: types.ID(userID), UserType: "driver"})
 	writeJSON(c, http.StatusOK, map[string]any{"status": "ok"})
