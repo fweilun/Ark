@@ -7,17 +7,11 @@ services:
       POSTGRES_DB: ark_test
       POSTGRES_USER: postgres
     ports:
-      - "5433:5432"  # Use different port to avoid conflicts
+      - "5433:5432" # Use different port to avoid conflicts
     volumes:
-      - ./migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql
-      - ./migrations/0002_schedule.sql:/docker-entrypoint-initdb.d/0002_schedule.sql
-      - ./migrations/0003_ai_usage.sql:/docker-entrypoint-initdb.d/0003_ai_usage.sql
-      - ./migrations/0004_notifications.sql:/docker-entrypoint-initdb.d/0004_notifications.sql
-      - ./migrations/0005_calendar.sql:/docker-entrypoint-initdb.d/0005_calendar.sql
-      - ./migrations/0006_driver.sql:/docker-entrypoint-initdb.d/0006_driver.sql
-      - ./migrations/0006_users.sql:/docker-entrypoint-initdb.d/0006_users.sql
+      - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ark_test"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d ark_test" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,9 +20,9 @@ services:
     image: redis:7
     container_name: ark-test-redis
     ports:
-      - "6380:6379"  # Use different port to avoid conflicts
+      - "6380:6379" # Use different port to avoid conflicts
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
