@@ -10,6 +10,7 @@ import (
 	"ark/internal/http/middleware"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -26,6 +27,7 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	driverService *driver.Service,
 	userService *user.Service,
 	tokenVerifier middleware.TokenVerifier,
 ) *gin.Engine {
@@ -94,6 +96,11 @@ func NewRouter(
 	api.GET("/api/me", userHandler.GetMe)
 	api.PATCH("/api/me", userHandler.UpdateMe)
 	api.DELETE("/api/me", userHandler.DeleteMe)
+
+	// driver profile & status (auth required; driver_id always from context)
+	driverHandler := driver.NewHandler(driverService)
+	r.PUT("/api/v1/driver/create", driverHandler.Create)
+	r.PUT("/api/v1/driver/status", driverHandler.UpdateStatus)
 
 	return r
 }

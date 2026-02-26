@@ -18,6 +18,7 @@ import (
 	"ark/internal/infra"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
+	"ark/internal/modules/driver"
 	"ark/internal/modules/location"
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
@@ -70,6 +71,8 @@ func main() {
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
+	driverStore := driver.NewStore(dbPool)
+	driverSvc := driver.NewService(driverStore)
 	userStore := user.NewStore(dbPool)
 	userSvc := user.NewService(userStore)
 	// Initialize Firebase auth client for token verification.
@@ -97,6 +100,7 @@ func main() {
 		AI:           aiSvc,
 		Notification: notificationSvc,
 		Calendar:     calendarSvc,
+		Driver:       driverSvc,
 		User:         userSvc,
 		Auth:         tokenVerifier,
 	})

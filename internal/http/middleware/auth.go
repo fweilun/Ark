@@ -62,3 +62,9 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	uid, ok := ctx.Value(contextUserIDKey{}).(string)
 	return uid, ok
 }
+
+// WithUserIDContext returns a copy of ctx with the given uid stored under the same
+// key used by the Auth middleware. Intended for use in tests only.
+func WithUserIDContext(ctx context.Context, uid string) context.Context {
+	return context.WithValue(ctx, contextUserIDKey{}, uid)
+}
