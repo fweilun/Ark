@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/middleware"
 	"ark/internal/modules/user"
 	"ark/internal/types"
 )
@@ -53,35 +54,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	writeJSON(c, http.StatusCreated, u)
 }
 
-// GetUser handles GET /api/users/:id — retrieves a user by user_id.
-func (h *UserHandler) GetUser(c *gin.Context) {
-	id := types.ID(c.Param("id"))
-	if id == "" {
-		writeError(c, http.StatusBadRequest, "invalid user id")
-		return
-	}
-	u, err := h.svc.GetByID(c.Request.Context(), id)
-	if err != nil {
-		writeUserError(c, err)
-		return
-	}
-	writeJSON(c, http.StatusOK, u)
-}
-
 // GetMe handles GET /api/me — returns the current user identified by token.
-// [TODO] Requires real auth middleware to set "userID" (types.ID) in gin context.
 func (h *UserHandler) GetMe(c *gin.Context) {
-	raw, exists := c.Get("userID")
-	if !exists {
+	uid, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok || uid == "" {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	id, ok := raw.(types.ID)
-	if !ok || id == "" {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	u, err := h.svc.GetByID(c.Request.Context(), id)
+	u, err := h.svc.GetByID(c.Request.Context(), types.ID(uid))
 	if err != nil {
 		writeUserError(c, err)
 		return
@@ -89,11 +69,11 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	writeJSON(c, http.StatusOK, u)
 }
 
-// UpdateName handles PATCH /api/users/:id — updates only the user's name.
-func (h *UserHandler) UpdateName(c *gin.Context) {
-	id := types.ID(c.Param("id"))
-	if id == "" {
-		writeError(c, http.StatusBadRequest, "invalid user id")
+// UpdateMe handles PATCH /api/me — updates only the current user's name.
+func (h *UserHandler) UpdateMe(c *gin.Context) {
+	uid, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok || uid == "" {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req updateUserNameReq
@@ -105,21 +85,21 @@ func (h *UserHandler) UpdateName(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "name is required")
 		return
 	}
-	if err := h.svc.UpdateName(c.Request.Context(), id, req.Name); err != nil {
+	if err := h.svc.UpdateName(c.Request.Context(), types.ID(uid), req.Name); err != nil {
 		writeUserError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"user_id": id})
+	c.Status(http.StatusNoContent)
 }
 
-// DeleteUser handles DELETE /api/users/:id.
-func (h *UserHandler) DeleteUser(c *gin.Context) {
-	id := types.ID(c.Param("id"))
-	if id == "" {
-		writeError(c, http.StatusBadRequest, "invalid user id")
+// DeleteMe handles DELETE /api/me — deletes the current authenticated user.
+func (h *UserHandler) DeleteMe(c *gin.Context) {
+	uid, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok || uid == "" {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), types.ID(uid)); err != nil {
 		writeUserError(c, err)
 		return
 	}

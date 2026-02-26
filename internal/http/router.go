@@ -91,10 +91,9 @@ func NewRouter(
 	// users
 	userHandler := handlers.NewUserHandler(userService)
 	r.POST("/api/users", userHandler.CreateUser)
-	r.GET("/api/users/:id", userHandler.GetUser)
-	r.GET("/api/me", userHandler.GetMe)
-	r.PATCH("/api/users/:id", userHandler.UpdateName)
-	r.DELETE("/api/users/:id", userHandler.DeleteUser)
+	api.GET("/api/me", userHandler.GetMe)
+	api.PATCH("/api/me", userHandler.UpdateMe)
+	api.DELETE("/api/me", userHandler.DeleteMe)
 
 	return r
 }
