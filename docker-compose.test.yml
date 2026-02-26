@@ -1,4 +1,38 @@
 services:
+  postgres:
+    image: postgres:15
+    container_name: ark-test-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ark_test
+      POSTGRES_USER: postgres
+    ports:
+      - "5433:5432"  # Use different port to avoid conflicts
+    volumes:
+      - ./migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql
+      - ./migrations/0002_schedule.sql:/docker-entrypoint-initdb.d/0002_schedule.sql
+      - ./migrations/0003_ai_usage.sql:/docker-entrypoint-initdb.d/0003_ai_usage.sql
+      - ./migrations/0004_notifications.sql:/docker-entrypoint-initdb.d/0004_notifications.sql
+      - ./migrations/0005_calendar.sql:/docker-entrypoint-initdb.d/0005_calendar.sql
+      - ./migrations/0006_driver.sql:/docker-entrypoint-initdb.d/0006_driver.sql
+      - ./migrations/0006_users.sql:/docker-entrypoint-initdb.d/0006_users.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ark_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: ark-test-redis
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   ark-test:
     container_name: ark-test
     build:
@@ -7,9 +41,18 @@ services:
       target: build
     volumes:
       - .:/src
+    working_dir: /src
     environment:
-      ARK_DB_DSN: "postgres://postgres:postgres@postgres:5432/ark?sslmode=disable"
+      ARK_DB_DSN: "postgres://postgres:postgres@postgres:5432/ark_test?sslmode=disable"
       ARK_REDIS_ADDR: "redis:6379"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "ark_test"
+      INTEGRATION_TEST: "true"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
