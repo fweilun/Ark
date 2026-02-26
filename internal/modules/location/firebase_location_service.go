@@ -65,6 +65,44 @@ func NewFirebaseService(ctx context.Context) (*FirebaseService, error) {
 	}, nil
 }
 
+// NewFirebaseServiceFromJSON initialises the Firebase Admin SDK using the
+// provided service-account JSON bytes. The RTDB URL is derived from the
+// project_id field in the credentials.
+func NewFirebaseServiceFromJSON(ctx context.Context, credJSON []byte) (*FirebaseService, error) {
+	var sa struct {
+		ProjectID string `json:"project_id"`
+	}
+	if err := json.Unmarshal(credJSON, &sa); err != nil {
+		return nil, fmt.Errorf("parsing credentials JSON: %w", err)
+	}
+	if sa.ProjectID == "" {
+		return nil, fmt.Errorf("project_id is empty in credentials JSON")
+	}
+
+	databaseURL := fmt.Sprintf("https://%s-default-rtdb.asia-southeast1.firebasedatabase.app", sa.ProjectID)
+	conf := &firebase.Config{DatabaseURL: databaseURL}
+	app, err := firebase.NewApp(ctx, conf, option.WithCredentialsJSON(credJSON))
+	if err != nil {
+		return nil, fmt.Errorf("initialising firebase app: %w", err)
+	}
+
+	dbClient, err := app.Database(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("initialising firebase RTDB client: %w", err)
+	}
+
+	msgClient, err := app.Messaging(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("initialising firebase messaging client: %w", err)
+	}
+
+	return &FirebaseService{
+		app:       app,
+		dbClient:  dbClient,
+		msgClient: msgClient,
+	}, nil
+}
+
 // parseProjectID reads the service-account JSON and extracts the project_id.
 func parseProjectID(path string) (string, error) {
 	data, err := os.ReadFile(path)
@@ -220,6 +258,34 @@ func (s *FirebaseService) GetNearbyPassengers(ctx context.Context, lat, lng, rad
 	}
 
 	sortByDistance(result, func(p PassengerLocation) float64 { return p.Distance })
+	return result, nil
+}
+
+// FetchAllDrivers returns the positions of all active drivers from Firebase RTDB.
+// The returned map is keyed by driver ID.
+func (s *FirebaseService) FetchAllDrivers(ctx context.Context) (map[types.ID]types.Point, error) {
+	data, err := s.queryActiveDrivers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[types.ID]types.Point, len(data))
+	for id, entry := range data {
+		result[types.ID(id)] = types.Point{Lat: entry.Lat, Lng: entry.Lng}
+	}
+	return result, nil
+}
+
+// FetchAllPassengers returns the positions of all active passengers from Firebase RTDB.
+// The returned map is keyed by passenger ID.
+func (s *FirebaseService) FetchAllPassengers(ctx context.Context) (map[types.ID]types.Point, error) {
+	data, err := s.queryActivePassengers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[types.ID]types.Point, len(data))
+	for id, entry := range data {
+		result[types.ID(id)] = types.Point{Lat: entry.Lat, Lng: entry.Lng}
+	}
 	return result, nil
 }
 
