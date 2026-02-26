@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	baseLat = 25.033964
-	baseLng = 121.564468
-	// ±0.01 degrees ≈ ±1 km — keeps all seeds visibly near Taipei 101.
-	offsetRange = 0.02
+	baseLat     = 25.033964
+	baseLng     = 121.564468
+	offsetRange = 0.02 // ±0.01 degrees ≈ ±1 km
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Println("initialising Firebase service...")
-	svc, err := location.NewFirebaseService(ctx)
+	log.Println("initialising location store (Firebase)...")
+	// db and redis are nil; only Firebase write methods are called below.
+	store, err := location.NewStore(ctx, nil, nil)
 	if err != nil {
-		log.Fatalf("NewFirebaseService: %v", err)
+		log.Fatalf("NewStore: %v", err)
 	}
 
 	log.Printf("seeding 5 mock drivers near Taipei 101 (%.6f, %.6f)...", baseLat, baseLng)
@@ -41,7 +41,7 @@ func main() {
 			Lng: baseLng + (rand.Float64()-0.5)*offsetRange,
 		}
 
-		if err := svc.WriteLocation(ctx, id, pos, "driver"); err != nil {
+		if err := store.WriteLocation(ctx, id, pos, "driver"); err != nil {
 			log.Printf("  [FAIL] driver %s: %v", id, err)
 			continue
 		}

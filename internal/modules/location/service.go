@@ -1,4 +1,4 @@
-// README: Location service handles high-frequency updates with optional snapshot flushing.
+// README: Location service orchestrates Redis GEO queries and Firebase dual-write.
 package location
 
 import (
@@ -6,23 +6,14 @@ import (
 	"fmt"
 	"log"
 	"time"
-
-	"ark/internal/types"
 )
 
 type Service struct {
-	store    *Store
-	firebase *FirebaseService
+	store *Store
 }
 
-func NewService(store *Store, firebase *FirebaseService) *Service {
-	return &Service{store: store, firebase: firebase}
-}
-
-type Update struct {
-	UserID   types.ID
-	UserType string
-	Position types.Point
+func NewService(store *Store) *Service {
+	return &Service{store: store}
 }
 
 // Update writes the user's position to Redis (for backend geo queries) and to
@@ -32,7 +23,7 @@ func (s *Service) Update(ctx context.Context, u Update) error {
 		log.Printf("location: Redis SetGeo failed for %s %s: %v", u.UserType, u.UserID, err)
 		return fmt.Errorf("updating Redis geo: %w", err)
 	}
-	if err := s.firebase.WriteLocation(ctx, u.UserID, u.Position, u.UserType); err != nil {
+	if err := s.store.WriteLocation(ctx, u.UserID, u.Position, u.UserType); err != nil {
 		log.Printf("location: Firebase write failed for %s %s: %v", u.UserType, u.UserID, err)
 		return fmt.Errorf("updating Firebase location: %w", err)
 	}
@@ -88,7 +79,7 @@ func (s *Service) GetNearbyPassengers(ctx context.Context, lat, lng, radiusKm fl
 	return result, nil
 }
 
-// NotifyDriverNewOrder delegates FCM push notification to the Firebase service.
+// NotifyDriverNewOrder delegates FCM push notification to the store.
 func (s *Service) NotifyDriverNewOrder(ctx context.Context, deviceToken string, info OrderInfo) error {
-	return s.firebase.NotifyDriverNewOrder(ctx, deviceToken, info)
+	return s.store.NotifyDriverNewOrder(ctx, deviceToken, info)
 }
