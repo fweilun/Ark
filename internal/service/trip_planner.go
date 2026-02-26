@@ -7,23 +7,45 @@ import (
 	"strings"
 	"time"
 
-	"ark/internal/ai"
 	"ark/internal/maps"
+	"ark/internal/modules/aiusage"
 )
 
 // DefaultTrafficBuffer is the extra time added to ensure on-time arrival.
 const DefaultTrafficBuffer = 10 * time.Minute
 
+// isTimePrecise checks that the iso_time string contains an explicit hour from the
+// user (i.e., not midnight 00:00 which is the AI's typical auto-fill default).
+// Returns false if the string is empty, unparseable, or falls exactly on midnight
+// without any plausible user intent (midnight bookings are vanishingly rare).
+// The backend treats midnight as a strong signal that the AI guessed the time.
+func isTimePrecise(isoTime *string) bool {
+	if isoTime == nil || *isoTime == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, *isoTime)
+	if err != nil {
+		// Malformed — not precise
+		return false
+	}
+	// If the time component is exactly 00:00:00, treat it as an AI-guessed placeholder.
+	// Real late-night requests (e.g., midnight) are extremely rare and should be confirmed anyway.
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
+		return false
+	}
+	return true
+}
+
 // TripPlanner orchestrates the AI intent parsing and Google Maps routing.
 type TripPlanner struct {
-	aiProvider    *ai.GeminiProvider
+	aiProvider    aiusage.AIClient
 	routeService  *maps.RouteService
 	placesService *maps.PlacesService
 	loc           *time.Location
 }
 
 // NewTripPlanner creates a TripPlanner with initialized dependencies.
-func NewTripPlanner(aiProvider *ai.GeminiProvider, routeService *maps.RouteService, placesService *maps.PlacesService) (*TripPlanner, error) {
+func NewTripPlanner(aiProvider aiusage.AIClient, routeService *maps.RouteService, placesService *maps.PlacesService) (*TripPlanner, error) {
 	loc, err := time.LoadLocation("Asia/Taipei")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Asia/Taipei location: %w", err)
@@ -45,7 +67,7 @@ func resolveCarType(passengerCount int, hasPet bool) (carType string, specialNot
 	case passengerCount >= 5 && passengerCount <= 6:
 		return "六人座大車", ""
 	case passengerCount > 6:
-		return "一般車型", fmt.Sprintf("❗ 由於人數超過 6 人，請問需要為您安排多輛車嗎？")
+		return "一般車型", "❗ 由於人數超過 6 人，請問需要為您安排多輛車嗎？"
 	default:
 		return "一般車型", ""
 	}
@@ -108,6 +130,14 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		originIsKnown := origin != "" && origin != "Current Location" && origin != "UNKNOWN_LOCATION"
 		if !originIsKnown {
 			return "收到您的需求！請問您預計從哪裡出發，以便為您尋找順路的地點？", nil
+		}
+
+		// ── BACKEND TIME PRECISION GUARD ─────────────────────────────────
+		// The AI must never reach the search branch with a vague / auto-filled time.
+		// If the iso_time looks like a midnight placeholder, demand a concrete hour.
+		if !isTimePrecise(intent.ISOTime) {
+			log.Printf("[TimePolicer] Search blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+			return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能為您進行後續規劃。請問您具體幾點出發或抵達？", nil
 		}
 
 		category := "something"
@@ -174,8 +204,9 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			}
 		}
 
-		// Direct Duration (needed for total time calc)
-		directDur, _, _ := p.routeService.GetTravelEstimate(ctx, origin, dest)
+		// Direct Duration (needed for total time calc and search-path time warning).
+		// Pass targetTime so Maps uses departure-time traffic, not current traffic.
+		directDur, _, _ := p.routeService.GetTravelEstimate(ctx, origin, dest, targetTime)
 		activityBuffer := 10 * time.Minute
 
 		// Recommendation Struct for Sorting
@@ -187,7 +218,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 
 		// Calculate Detours & Filter
 		for _, place := range places {
-			detour, err := p.routeService.GetDetourEstimate(ctx, origin, place.Address, dest)
+			detour, err := p.routeService.GetDetourEstimate(ctx, origin, place.Address, dest, targetTime)
 			if err != nil {
 				continue // Skip if calc fails
 			}
@@ -321,11 +352,32 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		return intent.Reply, nil
 	}
 
+	// 3.7 Guard: Booking with incomplete time must be re-clarified.
+	// The AI should never reach "booking" without a concrete iso_time, but this
+	// is a defence-in-depth layer in case the prompt rule slips through.
+	if intent.Intent == "booking" && (intent.ISOTime == nil || *intent.ISOTime == "") {
+		reply := intent.Reply
+		if reply == "" {
+			reply = "請問您希望幾點出發（或抵達）呢？"
+		}
+		return reply, nil
+	}
+
 	// 4. Handle Missing Destination (Safety Check)
 	if intent.Destination == nil || *intent.Destination == "" {
 		return intent.Reply, nil
 	}
 	destination := *intent.Destination
+
+	// 4.5 BACKEND BOOKING TIME PRECISION GUARD
+	// Before committing to full route calculation, ensure the booking carries a
+	// real user-given hour. If the AI guessed midnight as a placeholder, stop here.
+	// Only apply when a non-immediate time type is set (pure "immediate" has no iso_time anyway).
+	timeTypeIsSet := intent.TimeType != nil && *intent.TimeType != "immediate" && *intent.TimeType != ""
+	if timeTypeIsSet && !isTimePrecise(intent.ISOTime) {
+		log.Printf("[TimePolicer] Booking blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+		return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能進行預約。請問您具體幾點出發或抵達？", nil
+	}
 
 	// Alias Resolution (Demo)
 	switch destination {
@@ -355,11 +407,79 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		return fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
 	}
 
+	// 6a. EXPLICIT WAYPOINTS — user named specific places; no detour filter, direct route.
+	if len(intent.ExplicitWaypoints) > 0 {
+		// Use first waypoint (multi-waypoint support can extend this loop).
+		waypoint := intent.ExplicitWaypoints[0]
+
+		// Leg 1: Origin → Waypoint
+		leg1, _, err := p.routeService.GetTravelEstimate(ctx, origin, waypoint, time.Time{})
+		if err != nil {
+			return "", fmt.Errorf("explicit waypoint leg1: %w", err)
+		}
+		// Leg 2: Waypoint → Destination
+		leg2, _, err := p.routeService.GetTravelEstimate(ctx, waypoint, destination, time.Time{})
+		if err != nil {
+			return "", fmt.Errorf("explicit waypoint leg2: %w", err)
+		}
+		activity := 5 * time.Minute // Brief stop allowance
+		totalDuration := leg1 + activity + leg2
+
+		carType, specialNotice := resolveCarType(intent.PassengerCount, intent.HasPet)
+
+		var targetTime time.Time
+		if intent.ISOTime != nil {
+			if t, err := time.Parse(time.RFC3339, *intent.ISOTime); err == nil {
+				targetTime = t.In(p.loc)
+			}
+		}
+
+		isArrival := intent.TimeType != nil && *intent.TimeType == "arrival_time"
+
+		if isArrival && !targetTime.IsZero() {
+			// Reverse scheduling with traffic buffer (same as standard booking path).
+			departureTime := targetTime.Add(-totalDuration).Add(-DefaultTrafficBuffer)
+			var warning string
+			if departureTime.Before(now) {
+				delay := now.Add(totalDuration).Sub(targetTime)
+				warning = fmt.Sprintf("⚠️ 提醣：建議出發時間已過（%s），若現在立刻出發，預計將延遲 %.0f 分鐘抵達。\n\n",
+					fmtWithWeekday(departureTime), delay.Minutes())
+				departureTime = now
+			}
+			return fmt.Sprintf("%s收到！已為您在行程中加入 **%s** 作為中途停靠站。\n為確保您能在 **%s** 抵達 %s，出發時間將提前至 **%s**。%s",
+				warning, waypoint,
+				fmtWithWeekday(targetTime), destination,
+				fmtWithWeekday(departureTime),
+				carTypeFooter(carType, specialNotice)), nil
+		}
+
+		// Forward scheduling or no time specified.
+		departureTime := now
+		if !targetTime.IsZero() && intent.TimeType != nil && *intent.TimeType == "pickup_time" {
+			departureTime = targetTime
+		}
+		estimatedArrival := departureTime.Add(totalDuration)
+		return fmt.Sprintf("收到！已為您在行程中加入 **%s** 作為中途停靠站。\n將於 **%s** 從 %s 出發，中途停靠 **%s**，預計於 **%s** 抵達 %s。%s",
+			waypoint,
+			fmtWithWeekday(departureTime), origin, waypoint,
+			fmtWithWeekday(estimatedArrival), destination,
+			carTypeFooter(carType, specialNotice)), nil
+	}
+
+	// 6b. INTERMEDIATE STOP (from search selection / confirmed stop via AI):
 	if intent.IntermediateStop != nil && *intent.IntermediateStop != "" {
 		stop := *intent.IntermediateStop
 
+		// Parse target time first so we can pass it to Maps for traffic-aware estimates.
+		var targetTime time.Time
+		if intent.ISOTime != nil {
+			if t, err := time.Parse(time.RFC3339, *intent.ISOTime); err == nil {
+				targetTime = t.In(p.loc)
+			}
+		}
+
 		// Leg 1: Origin -> Stop
-		leg1, _, err := p.routeService.GetTravelEstimate(ctx, origin, stop)
+		leg1, _, err := p.routeService.GetTravelEstimate(ctx, origin, stop, targetTime)
 		if err != nil {
 			return "", fmt.Errorf("failed to calc leg1: %w", err)
 		}
@@ -368,20 +488,12 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		activity := 10 * time.Minute
 
 		// Leg 2: Stop -> Dest
-		leg2, _, err := p.routeService.GetTravelEstimate(ctx, stop, destination)
+		leg2, _, err := p.routeService.GetTravelEstimate(ctx, stop, destination, targetTime)
 		if err != nil {
 			return "", fmt.Errorf("failed to calc leg2: %w", err)
 		}
 
 		totalDuration = leg1 + activity + leg2
-
-		// Parse Target Time
-		var targetTime time.Time
-		if intent.ISOTime != nil {
-			if t, err := time.Parse(time.RFC3339, *intent.ISOTime); err == nil {
-				targetTime = t.In(p.loc)
-			}
-		}
 
 		// Determine vehicle type.
 		carType, specialNotice := resolveCarType(intent.PassengerCount, intent.HasPet)
@@ -434,24 +546,13 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 	}
 
 	// Standard Direct Trip
-	duration, _, err := p.routeService.GetTravelEstimate(ctx, origin, destination)
-	if err != nil {
-		log.Printf("Maps Error: %v", err)
-		return "", fmt.Errorf("maps error: %w", err)
-	}
-
-	// ... (Existing logic for direct trip response)
-	// Parse the AI's ISOTime if available
+	// Standard Direct Trip: parse target time first for traffic-aware estimate.
 	var targetTime time.Time
 	if intent.ISOTime != nil {
-		// AI returns ISO 8601 with timezone (RFC3339).
 		parsedTime, err := time.Parse(time.RFC3339, *intent.ISOTime)
 		if err == nil {
 			targetTime = parsedTime.In(p.loc)
-
-			// Date Expiry Check (Logic Fix)
-			// If target time is in the past, checking if it's a "just missed" case (e.g. 10pm vs 10:10pm)
-			// If within 12 hours past, suggest tomorrow.
+			// Date Expiry Check: if within 12 hours past, suggest tomorrow.
 			if targetTime.Before(now) {
 				diff := now.Sub(targetTime)
 				if diff < 12*time.Hour {
@@ -464,6 +565,8 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			log.Printf("Time Parse Error: %v (input: %s)", err, *intent.ISOTime)
 		}
 	}
+
+	duration, _, err := p.routeService.GetTravelEstimate(ctx, origin, destination, targetTime)
 
 	// If no specific time logic or "immediate", handle simple case
 	if intent.TimeType == nil || *intent.TimeType == "immediate" || targetTime.IsZero() {

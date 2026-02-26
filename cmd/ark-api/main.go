@@ -23,6 +23,7 @@ import (
 	"ark/internal/modules/matching"
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
+	"ark/internal/modules/planner"
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/user"
 )
@@ -56,7 +57,20 @@ func main() {
 	locationSvc := location.NewService(locationStore)
 
 	aiStore := aiusage.NewStore(dbPool)
-	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
+	aiClient, err := aiusage.NewGeminiClient(ctx, cfg.AI.GeminiKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	plannerStore := planner.NewStore(dbPool)
+	plannerSvc := planner.NewService(plannerStore)
+
+	aiSvc, err := aiusage.NewService(aiusage.ServiceConfig{
+		Store:          aiStore,
+		AIClient:       aiClient,
+		GeminiKey:      cfg.AI.GeminiKey,
+		PlannerService: plannerSvc,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
