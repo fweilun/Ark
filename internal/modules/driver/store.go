@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"ark/internal/types"
@@ -34,7 +36,14 @@ func (s *Store) Create(ctx context.Context, d *Driver) error {
 		VALUES ($1, $2, $3, $4, $5, $6)`,
 		string(d.ID), d.LicenseNumber, toStringPtr(d.VehicleID), d.Rating, d.Status, d.OnboardedAt,
 	)
-	return err
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrConflict
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Store) Get(ctx context.Context, id types.ID) (*Driver, error) {
@@ -45,7 +54,7 @@ func (s *Store) Get(ctx context.Context, id types.ID) (*Driver, error) {
 	var d Driver
 	var vehicleID sql.NullString
 	err := row.Scan(&d.ID, &d.LicenseNumber, &vehicleID, &d.Rating, &d.Status, &d.OnboardedAt)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
