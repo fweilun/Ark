@@ -9,8 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	firebase "firebase.google.com/go/v4"
+	"google.golang.org/api/option"
+
 	"ark/internal/config"
 	httptransport "ark/internal/http"
+	"ark/internal/http/middleware"
 	"ark/internal/infra"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
@@ -65,6 +69,23 @@ func main() {
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
 
+	// Initialize Firebase auth client for token verification.
+	// If FIREBASE_CREDENTIALS_JSON is not set, auth middleware is disabled (dev mode).
+	var tokenVerifier middleware.TokenVerifier
+	if creds := cfg.Notification.FirebaseCredentialsJSON; creds != "" {
+		fbApp, err := firebase.NewApp(ctx, nil, option.WithCredentialsJSON([]byte(creds)))
+		if err != nil {
+			log.Fatalf("initialising Firebase app for auth: %v", err)
+		}
+		authClient, err := fbApp.Auth(ctx)
+		if err != nil {
+			log.Fatalf("initialising Firebase auth client: %v", err)
+		}
+		tokenVerifier = authClient
+	} else {
+		log.Printf("SECURITY WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
+	}
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -73,6 +94,7 @@ func main() {
 		AI:           aiSvc,
 		Notification: notificationSvc,
 		Calendar:     calendarSvc,
+		Auth:         tokenVerifier,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
