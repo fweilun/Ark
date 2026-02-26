@@ -125,21 +125,15 @@ func (s *Store) geoSearch(ctx context.Context, key string, p types.Point, radius
 	return ids, nil
 }
 
-// AppendSnapshot persists a location snapshot to Postgres for historical replay.
-// Expects a table created with:
-//
-//	CREATE TABLE location_snapshots (
-//	  id          BIGSERIAL PRIMARY KEY,
-//	  user_id     TEXT        NOT NULL,
-//	  user_type   TEXT        NOT NULL,
-//	  lat         FLOAT8      NOT NULL,
-//	  lng         FLOAT8      NOT NULL,
-//	  recorded_at TIMESTAMPTZ NOT NULL
-//	);
+// AppendSnapshot upserts the latest location snapshot for a user to Postgres.
+// On conflict for the same (user_id, user_type) pair the row is updated in-place.
+// See migrations/0007_location_snapshots.sql for the expected schema.
 func (s *Store) AppendSnapshot(ctx context.Context, snap Snapshot) error {
 	_, err := s.db.Exec(ctx,
 		`INSERT INTO location_snapshots (user_id, user_type, lat, lng, recorded_at)
-		 VALUES ($1, $2, $3, $4, $5)`,
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (user_id, user_type)
+		 DO UPDATE SET lat = EXCLUDED.lat, lng = EXCLUDED.lng, recorded_at = EXCLUDED.recorded_at`,
 		string(snap.UserID), snap.UserType,
 		snap.Position.Lat, snap.Position.Lng,
 		snap.RecordedAt,

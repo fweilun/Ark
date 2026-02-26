@@ -12,6 +12,10 @@ type MatchingConfig struct {
 	RadiusKm    float64
 }
 
+type LocationConfig struct {
+	SyncIntervalSeconds int
+}
+
 type Config struct {
 	HTTP struct {
 		Addr string
@@ -22,8 +26,9 @@ type Config struct {
 	Redis struct {
 		Addr string
 	}
-	Matching MatchingConfig
-	AI       struct {
+	Matching     MatchingConfig
+	Location     LocationConfig
+	AI           struct {
 		GeminiKey string
 	}
 	Notification struct {
@@ -38,6 +43,7 @@ func Load() (Config, error) {
 	cfg.Redis.Addr = envOrDefault("ARK_REDIS_ADDR", "localhost:6379")
 	cfg.Matching.TickSeconds = envOrDefaultInt("ARK_MATCH_TICK", 3)
 	cfg.Matching.RadiusKm = envOrDefaultFloat("ARK_MATCH_RADIUS_KM", 3.0)
+	cfg.Location.SyncIntervalSeconds = envOrDefaultInt("ARK_LOCATION_SYNC_INTERVAL", 60)
 	geminiKey, err := envOrError("GEMINI_API_KEY")
 	if err != nil {
 		return cfg, err

@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
@@ -25,6 +27,7 @@ import (
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/user"
+	"ark/internal/types"
 )
 
 func main() {
@@ -112,7 +115,67 @@ func main() {
 	go orderSvc.RunScheduleIncentiveTicker(ctx)
 	go orderSvc.RunScheduleExpireTicker(ctx)
 
+	// Reuse the same Firebase service-account credentials for location sync;
+	// both notification and location operate on the same Firebase project.
+	if creds := cfg.Notification.FirebaseCredentialsJSON; creds != "" {
+		fbLocSvc, err := location.NewFirebaseServiceFromJSON(ctx, []byte(creds))
+		if err != nil {
+			log.Printf("WARNING: could not init Firebase location service for sync: %v", err)
+		} else {
+			interval := time.Duration(cfg.Location.SyncIntervalSeconds) * time.Second
+			go runLocationSync(ctx, fbLocSvc, locationSvc, interval)
+		}
+	}
+
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
+	}
+}
+
+// runLocationSync polls Firebase RTDB every interval and updates the Redis GEO
+// cache via the location service. The interval is configurable via
+// ARK_LOCATION_SYNC_INTERVAL (default 60 s).
+func runLocationSync(ctx context.Context, fbSvc *location.FirebaseService, svc *location.Service, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			syncLocations(ctx, fbSvc, svc)
+		}
+	}
+}
+
+func syncLocations(ctx context.Context, fbSvc *location.FirebaseService, svc *location.Service) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		syncUserType(ctx, fbSvc.FetchAllDrivers, svc, "driver")
+	}()
+	go func() {
+		defer wg.Done()
+		syncUserType(ctx, fbSvc.FetchAllPassengers, svc, "passenger")
+	}()
+	wg.Wait()
+}
+
+func syncUserType(
+	ctx context.Context,
+	fetch func(context.Context) (map[types.ID]types.Point, error),
+	svc *location.Service,
+	userType string,
+) {
+	positions, err := fetch(ctx)
+	if err != nil {
+		log.Printf("location sync: fetch %s locations: %v", userType, err)
+		return
+	}
+	for id, pos := range positions {
+		if err := svc.Update(ctx, location.Update{UserID: id, UserType: userType, Position: pos}); err != nil {
+			log.Printf("location sync: update %s %s: %v", userType, id, err)
+		}
 	}
 }
