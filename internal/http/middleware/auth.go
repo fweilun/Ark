@@ -56,5 +56,5 @@ func Auth(verifier TokenVerifier) gin.HandlerFunc {
 // Returns the UID and true if present; otherwise "", false.
 func UserIDFromContext(ctx context.Context) (string, bool) {
 	uid, ok := ctx.Value(contextUserIDKey{}).(string)
-	return uid, ok && uid != ""
+	return uid, ok
 }
