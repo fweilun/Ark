@@ -27,31 +27,6 @@ type Update struct {
 }
 
 // Update stores the user's current position in Redis.
-//
-// # Continuous data pull — recommended pattern
-//
-// Subscribe to Firebase RTDB changes at server startup using the real-time
-// listener API:
-//
-//	ref := dbClient.NewRef("driver_locations")
-//	go ref.Listen(ctx, func(e db.Event) error {
-//	    var entry struct {
-//	        Lat float64 `json:"lat"`
-//	        Lng float64 `json:"lng"`
-//	    }
-//	    if err := e.Snapshot.Unmarshal(&entry); err != nil {
-//	        return err
-//	    }
-//	    return svc.Update(ctx, location.Update{
-//	        UserID:   types.ID(e.Snapshot.Key()),
-//	        UserType: "driver",
-//	        Position: types.Point{Lat: entry.Lat, Lng: entry.Lng},
-//	    })
-//	})
-//
-// Do the same for "passenger_locations" with UserType "passenger".
-// Each call to the listener runs in the goroutine started by Listen, so
-// concurrent updates for different users are handled safely.
 func (s *Service) Update(ctx context.Context, u Update) error {
 	return s.store.SetGeo(ctx, u.UserID, u.Position, u.UserType)
 }
