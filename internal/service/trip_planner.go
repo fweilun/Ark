@@ -14,6 +14,28 @@ import (
 // DefaultTrafficBuffer is the extra time added to ensure on-time arrival.
 const DefaultTrafficBuffer = 10 * time.Minute
 
+// isTimePrecise checks that the iso_time string contains an explicit hour from the
+// user (i.e., not midnight 00:00 which is the AI's typical auto-fill default).
+// Returns false if the string is empty, unparseable, or falls exactly on midnight
+// without any plausible user intent (midnight bookings are vanishingly rare).
+// The backend treats midnight as a strong signal that the AI guessed the time.
+func isTimePrecise(isoTime *string) bool {
+	if isoTime == nil || *isoTime == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, *isoTime)
+	if err != nil {
+		// Malformed — not precise
+		return false
+	}
+	// If the time component is exactly 00:00:00, treat it as an AI-guessed placeholder.
+	// Real late-night requests (e.g., midnight) are extremely rare and should be confirmed anyway.
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
+		return false
+	}
+	return true
+}
+
 // TripPlanner orchestrates the AI intent parsing and Google Maps routing.
 type TripPlanner struct {
 	aiProvider    aiusage.AIClient
@@ -108,6 +130,14 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		originIsKnown := origin != "" && origin != "Current Location" && origin != "UNKNOWN_LOCATION"
 		if !originIsKnown {
 			return "收到您的需求！請問您預計從哪裡出發，以便為您尋找順路的地點？", nil
+		}
+
+		// ── BACKEND TIME PRECISION GUARD ─────────────────────────────────
+		// The AI must never reach the search branch with a vague / auto-filled time.
+		// If the iso_time looks like a midnight placeholder, demand a concrete hour.
+		if !isTimePrecise(intent.ISOTime) {
+			log.Printf("[TimePolicer] Search blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+			return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能為您進行後續規劃。請問您具體幾點出發或抵達？", nil
 		}
 
 		category := "something"
@@ -338,6 +368,16 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		return intent.Reply, nil
 	}
 	destination := *intent.Destination
+
+	// 4.5 BACKEND BOOKING TIME PRECISION GUARD
+	// Before committing to full route calculation, ensure the booking carries a
+	// real user-given hour. If the AI guessed midnight as a placeholder, stop here.
+	// Only apply when a non-immediate time type is set (pure "immediate" has no iso_time anyway).
+	timeTypeIsSet := intent.TimeType != nil && *intent.TimeType != "immediate" && *intent.TimeType != ""
+	if timeTypeIsSet && !isTimePrecise(intent.ISOTime) {
+		log.Printf("[TimePolicer] Booking blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+		return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能進行預約。請問您具體幾點出發或抵達？", nil
+	}
 
 	// Alias Resolution (Demo)
 	switch destination {
