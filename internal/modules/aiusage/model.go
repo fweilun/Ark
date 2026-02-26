@@ -59,6 +59,20 @@ type IntentResult struct {
 	// (e.g. "北一女中", "忠孝SOGO"), the AI puts it here and sets NeedsSearch=false.
 	ExplicitWaypoints []string `json:"explicit_waypoints,omitempty"`
 
+	// IsDiningIntent is true when the user mentions dining/eating, or the destination is a restaurant.
+	IsDiningIntent bool `json:"is_dining_intent,omitempty"`
+
+	// RestaurantName is the specific restaurant name if the user has already chosen one.
+	// Empty string means no restaurant selected yet.
+	RestaurantName string `json:"restaurant_name,omitempty"`
+
+	// NeedsReservation is true when the user has confirmed they want the system to
+	// make a restaurant reservation on their behalf via Inline.
+	NeedsReservation bool `json:"needs_reservation,omitempty"`
+
+	// NeedsDestinationSearch is true when the user requests restaurant recommendations.
+	NeedsDestinationSearch bool `json:"needs_destination_search,omitempty"`
+
 	// Reply is the user-facing response string.
 	Reply string `json:"reply"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
@@ -61,10 +62,15 @@ func (g *geminiClient) ParseUserIntent(ctx context.Context, userMessage string, 
 	}
 
 	cleanJSON := cleanJSONString(sb.String())
+	log.Printf("[DEBUG RAW LLM JSON]: %s\n", cleanJSON)
 	var result IntentResult
 	if err := json.Unmarshal([]byte(cleanJSON), &result); err != nil {
 		return nil, fmt.Errorf("gemini: parse JSON response: %w. Raw: %s", err, cleanJSON)
 	}
+
+	intentBytes, _ := json.Marshal(result)
+	log.Printf("[DEBUG PARSED STRUCT]: %s\n", string(intentBytes))
+
 	return &result, nil
 }
 
@@ -124,16 +130,53 @@ func buildSystemPrompt(ctxMap map[string]string) string {
 	if userLocation == "" {
 		userLocation = "UNKNOWN_LOCATION"
 	}
-	if userContextInfo == "" {
-		userContextInfo = "NONE"
+	userName := ctxMap["user_name"]
+	if userName == "" {
+		userName = "您"
 	}
 
-	return fmt.Sprintf(`Role: You are the intelligent dispatch core for "ZooZoo", a ride-hailing app in Taiwan.
+	// Add Dynamic Dining Prompt if the ride booking phase is completed
+	dynamicDiningPrompt := ""
+	if ctxMap["has_dining_intent"] == "true" && ctxMap["ride_fully_booked"] == "true" {
+		targetRest := ctxMap["target_restaurant"]
+		dest := ctxMap["destination"]
+		if dest == "" {
+			dest = "目的地"
+		}
+
+		dynamicDiningPrompt = "\n【管家餐飲服務階段 (Ride is Booked)】\n" +
+			"叫車已經完成，目前進入「餐飲推薦與訂位」階段。請嚴格遵守以下規則：\n" +
+			"1. Intent 必須是 \"clarification\" (如果還在確認人數或需求) 或是 \"chat\" (純聊天/道別)。\n" +
+			"2. 如果使用者詢問推薦餐廳、不知吃什麼、或說「好啊推薦」，你必須將 \"needs_destination_search\": true。\n" +
+			"3. 【🚨 訂位防呆規則】如果你正在詢問「請問要預約嗎？」或是「請問總共幾位用餐？」，你**絕對必須**將 needs_reservation 設為 false！只有當使用者『明確給出用餐人數』並且『同意訂位』（例如回答：『兩位，幫我訂』）之後，你才可以將 needs_reservation 設為 true。\n" +
+			"4. 注意：不可將『乘車人數』直接當作『用餐人數』而跳過詢問。\n"
+
+		if targetRest != "" && targetRest != dest {
+			dynamicDiningPrompt += "當前狀態：正在詢問使用者是否要預訂 " + targetRest + "。\n"
+		} else {
+			dynamicDiningPrompt += "當前狀態：正在詢問使用者在 " + dest + " 是否需要推薦餐廳。\n"
+		}
+	}
+
+	return fmt.Sprintf(`Role: You are the elite life-concierge AI for "ZooZoo", a premium ride-hailing app in Taiwan.
+You are not just a dispatcher — you are a proactive, warm, and meticulous personal assistant who anticipates
+the user's needs and takes care of every detail, from transport to dining reservations.
+Always address the user by their name (%s) in a polite, warm tone when you know it.
+
+【🚨 致命紅線警告：絕對禁止腦補地點】
+絕對禁止腦補或猜測 start_location 與 destination。
+如果使用者沒有在對話中明確說出具體地點，你必須將其設為 null，並將 intent 保持在 clarification 主動詢問。
+絕對不可以擅自填寫「台北車站」或任何預設地點來強行進入 booking 狀態！
+
+【🤐 階段隔離封口令 (Gag Order)】
+當你還在處理叫車的 clarification 或 booking 階段（例如：還在確認起點、終點、時間、人數或詢問車型升級）時，絕對禁止在 reply 中提到任何關於「餐廳、吃飯、訂位、推薦」的問題！
+即使你已經偵測到 is_dining_intent: true 並填寫在 JSON 裡，你只能默默記住，嘴巴上只能專心解決『叫車』的問題。管家服務必須等車子完全訂妥後才能啟動。
+
 Context: 
 - Current System Time: %s
 - User Location: %s
 - Personal Context: %s
-
+%s
 STRICT DECISION GATE (MUST READ):
 You MUST NOT set "intent": "booking" unless ALL FOUR conditions are met:
 1. [ ] Destination is CLEAR.
@@ -257,18 +300,32 @@ RULES:
 
 13. UPSELL RESPONSE & COMPLETED STATE (CRITICAL):
    - IF conversation history shows ZooZoo already asked an upsell question AND user is responding:
-     - Set "intent": "completed".
+     - Set "intent": "completed". (UNLESS you are executing the Dining Priority Task, then set it to "clarification" to ask about reservations).
      - User DECLINES (e.g., "不用"): Set "selected_upgrade": "".
      - User ACCEPTS (e.g., "要豪車"): Set "selected_upgrade": the car name.
-     - NEVER set intent to "booking" or "clarification" on a completed upsell turn.
+     - NEVER set intent to "booking" or "clarification" on a completed upsell turn EXCEPT for the Dining Priority Task.
 
-14. Output JSON Schema:
+14. DINING INTENT DETECTION & RESERVATION (CRITICAL):
+   - IF the user mentions eating, dining, dinner, lunch (e.g., "吃飯", "用餐", "吃晚餐").
+   - OR IF the destination is naturally a restaurant (e.g., "MUME", "鼎泰豐", "Raw", "教父牛排", "屋馬烤肉").
+   - THEN you MUST set "is_dining_intent": true.
+   - If a specific restaurant is named or confirmed, extract it to "restaurant_name".
+   - IF the user EXPLICITLY CONFIRMS a reservation (e.g., "好，幫我訂", "幫我預約"):
+     - MUST set "needs_reservation": true.
+     - You MUST STILL ensure "intent" is "clarification" so the backend can process the Inline API.
+   - IF the user DECLINES the DINING prompt (e.g., "不用自己訂", "不要餐廳"):
+     - You MUST set "is_dining_intent": false and "needs_reservation": false.
+
+15. Output JSON Schema:
 {
   "intent": "booking" | "clarification" | "chat" | "completed",
   "destination": "string or null",
   "start_location": "string (default: 'Current Location')",
   "needs_origin": boolean,
   "needs_search": boolean,
+  "is_dining_intent": boolean,
+  "restaurant_name": "string or null",
+  "needs_reservation": boolean,
   "search_category": "string or null",
   "search_keywords": "string or null",
   "exclude_keywords": ["string"],
@@ -281,7 +338,7 @@ RULES:
   "selected_upgrade": "string (car type chosen by user, empty = declined)",
   "reply": "string (User facing response)"
 }
-`, currentTime, userLocation, userContextInfo)
+`, userName, currentTime, userLocation, userContextInfo, dynamicDiningPrompt)
 }
 
 // cleanJSONString removes markdown code fences that some models emit despite JSON mode.

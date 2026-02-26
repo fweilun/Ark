@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Initialize Trip Planner
-	planner, err := service.NewTripPlanner(provider, routeService, placesService)
+	planner, err := service.NewTripPlanner(provider, routeService, placesService, "立誠", "0912345678")
 	if err != nil {
 		log.Fatalf("Failed to create trip planner: %v", err)
 	}
@@ -55,7 +55,7 @@ func main() {
 	var history strings.Builder
 
 	// Simulated User Context
-	userContextInfo := "Home: No. 1, Sec 1, Yonghe Rd, Yonghe Dist, New Taipei City (永和家); Office: No. 1, Ruiguang Rd, Neihu Dist, Taipei City (內湖公司)"
+	userContextInfo := "Home: No. 1, Sec 1, Yonghe Rd, Yonghe Dist, New Taipei City (永和家); Office: No. 1, Ruiguang Rd, Neihu Dist, Taipei City (內湖公司); User Profile: Name=立誠, Phone=0912345678"
 
 	fmt.Println("ZooZoo: 您好！請問今天要幫您安排什麼行程？")
 	fmt.Print("User: ")

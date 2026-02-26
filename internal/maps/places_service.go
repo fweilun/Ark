@@ -43,10 +43,8 @@ func NewPlacesService(apiKey string) (*PlacesService, error) {
 // opts can be nil for a basic search. SearchKeywords are appended to the query;
 // ExcludeKeywords filter out results by name.
 func (s *PlacesService) SearchNearby(ctx context.Context, location string, query string, opts *SearchOptions) ([]Place, error) {
-	// Build the query string.
 	fullQuery := query
 
-	// Append positive keywords to the query for a more specific API request.
 	if opts != nil && opts.SearchKeywords != "" {
 		fullQuery = opts.SearchKeywords + " " + fullQuery
 	}
@@ -55,19 +53,17 @@ func (s *PlacesService) SearchNearby(ctx context.Context, location string, query
 		fullQuery = fmt.Sprintf("%s near %s", fullQuery, location)
 	}
 
-	// Determine if this is a florist search to apply strict type filtering.
 	isFloristSearch := strings.Contains(strings.ToLower(query), "flower") ||
 		strings.Contains(strings.ToLower(query), "florist") ||
 		strings.Contains(query, "花")
 
 	r := &maps.TextSearchRequest{
 		Query:    fullQuery,
-		OpenNow:  true, // Filter for open places
+		OpenNow:  true,
 		Language: "zh-TW",
 		Region:   "TW",
 	}
 
-	// Strict type filter for florist searches to prevent irrelevant results from the API.
 	if isFloristSearch {
 		r.Type = "florist"
 	}
@@ -77,11 +73,8 @@ func (s *PlacesService) SearchNearby(ctx context.Context, location string, query
 		return nil, fmt.Errorf("places api error: %w", err)
 	}
 
-	// Base exclusion list: always filter out parks, dessert shops, etc.
 	excludedKeywords := []string{"Park", "公園", "Douhua", "豆花", "Shaved Ice", "剉冰", "Soup", "羹", "Tofu", "豆腐"}
 
-	// Extra exclusion for florists to avoid supermarkets and convenience stores.
-	// Applied as a second line of defence after the API type filter.
 	if isFloristSearch {
 		excludedKeywords = append(excludedKeywords,
 			"Supermarket", "Mart", "Carrefour", "PX Mart",
@@ -89,7 +82,6 @@ func (s *PlacesService) SearchNearby(ctx context.Context, location string, query
 			"全聯", "家樂福", "超市", "便利商店", "超商", "萊爾富", "全家", "統一")
 	}
 
-	// Merge in dynamic exclusions from the AI (e.g. "永生花", "乾燥花").
 	if opts != nil && len(opts.ExcludeKeywords) > 0 {
 		excludedKeywords = append(excludedKeywords, opts.ExcludeKeywords...)
 	}
@@ -97,11 +89,10 @@ func (s *PlacesService) SearchNearby(ctx context.Context, location string, query
 	var results []Place
 
 	for _, result := range resp.Results {
-		if result.Rating < 4.0 { // Filter for high quality
+		if result.Rating < 4.0 {
 			continue
 		}
 
-		// Name filtering: static + dynamic exclusions.
 		skip := false
 		for _, kw := range excludedKeywords {
 			if kw != "" && strings.Contains(result.Name, kw) {
@@ -121,7 +112,7 @@ func (s *PlacesService) SearchNearby(ctx context.Context, location string, query
 			UserRatingsTotal: result.UserRatingsTotal,
 		})
 
-		if len(results) >= 3 { // Limit to top 3
+		if len(results) >= 3 {
 			break
 		}
 	}
@@ -141,7 +132,7 @@ func (s *PlacesService) SearchAlongRoute(ctx context.Context, waypoints []string
 	for _, point := range waypoints {
 		results, err := s.SearchNearby(ctx, point, query, opts)
 		if err != nil {
-			continue // Skip failed points, try others
+			continue
 		}
 
 		for _, p := range results {
@@ -153,8 +144,68 @@ func (s *PlacesService) SearchAlongRoute(ctx context.Context, waypoints []string
 	}
 
 	if len(allPlaces) == 0 {
-		return nil, nil // No results found
+		return nil, nil
 	}
 
 	return allPlaces, nil
+}
+
+// SearchAtDestination searches for reservable restaurants near a destination string.
+// It filters for high-quality restaurants (rating ≥ 4.0) and excludes stalls/hawkers
+// that typically do not accept advance reservations.
+func (s *PlacesService) SearchAtDestination(ctx context.Context, destinationStr string, query string) ([]Place, error) {
+	fullQuery := query
+	if destinationStr != "" {
+		fullQuery = fmt.Sprintf("%s near %s", query, destinationStr)
+	}
+
+	r := &maps.TextSearchRequest{
+		Query:    fullQuery,
+		Language: "zh-TW",
+		Region:   "TW",
+		Type:     "restaurant",
+	}
+
+	resp, err := s.client.TextSearch(ctx, r)
+	if err != nil {
+		return nil, fmt.Errorf("places api (destination) error: %w", err)
+	}
+
+	// Exclude hawker stalls and informal food that rarely accept reservations.
+	excludedKeywords := []string{
+		"小吃", "夜市", "攤", "路邊攤", "自助餐", "快餐", "便當",
+		"麵攤", "滷味", "蚵仔煎", "臭豆腐",
+	}
+
+	var results []Place
+	for _, result := range resp.Results {
+		if result.Rating < 4.0 {
+			continue
+		}
+
+		skip := false
+		for _, kw := range excludedKeywords {
+			if kw != "" && strings.Contains(result.Name, kw) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		results = append(results, Place{
+			Name:             result.Name,
+			Address:          result.FormattedAddress,
+			Rating:           result.Rating,
+			PlaceID:          result.PlaceID,
+			UserRatingsTotal: result.UserRatingsTotal,
+		})
+
+		if len(results) >= 3 {
+			break
+		}
+	}
+
+	return results, nil
 }
