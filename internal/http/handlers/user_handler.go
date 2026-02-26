@@ -3,11 +3,11 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"ark/internal/modules/user"
+	"ark/internal/types"
 )
 
 // UserHandler exposes user CRUD endpoints.
@@ -33,7 +33,7 @@ type updateUserNameReq struct {
 	Name string `json:"name"`
 }
 
-// CreateUser handles POST /users.
+// CreateUser handles POST /api/users.
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req createUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -53,10 +53,10 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	writeJSON(c, http.StatusCreated, u)
 }
 
-// GetUser handles GET /users/:id — retrieves a user by user_id.
+// GetUser handles GET /api/users/:id — retrieves a user by user_id.
 func (h *UserHandler) GetUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil || id <= 0 {
+	id := types.ID(c.Param("id"))
+	if id == "" {
 		writeError(c, http.StatusBadRequest, "invalid user id")
 		return
 	}
@@ -68,16 +68,16 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	writeJSON(c, http.StatusOK, u)
 }
 
-// GetMe handles GET /me — returns the current user identified by token.
-// [TODO] Requires real auth middleware to set "userID" (int) in gin context.
+// GetMe handles GET /api/me — returns the current user identified by token.
+// [TODO] Requires real auth middleware to set "userID" (types.ID) in gin context.
 func (h *UserHandler) GetMe(c *gin.Context) {
 	raw, exists := c.Get("userID")
 	if !exists {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	id, ok := raw.(int)
-	if !ok || id <= 0 {
+	id, ok := raw.(types.ID)
+	if !ok || id == "" {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -89,10 +89,10 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	writeJSON(c, http.StatusOK, u)
 }
 
-// UpdateName handles PATCH /users/:id — updates only the user's name.
+// UpdateName handles PATCH /api/users/:id — updates only the user's name.
 func (h *UserHandler) UpdateName(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil || id <= 0 {
+	id := types.ID(c.Param("id"))
+	if id == "" {
 		writeError(c, http.StatusBadRequest, "invalid user id")
 		return
 	}
@@ -112,10 +112,10 @@ func (h *UserHandler) UpdateName(c *gin.Context) {
 	writeJSON(c, http.StatusOK, map[string]any{"user_id": id})
 }
 
-// DeleteUser handles DELETE /users/:id.
+// DeleteUser handles DELETE /api/users/:id.
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil || id <= 0 {
+	id := types.ID(c.Param("id"))
+	if id == "" {
 		writeError(c, http.StatusBadRequest, "invalid user id")
 		return
 	}

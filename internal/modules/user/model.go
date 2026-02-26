@@ -1,7 +1,11 @@
 // README: User domain model.
 package user
 
-import "time"
+import (
+	"time"
+
+	"ark/internal/types"
+)
 
 // UserType distinguishes riders from drivers.
 type UserType string
@@ -13,7 +17,7 @@ const (
 
 // User represents a natural person in the system.
 type User struct {
-	UserID    int
+	UserID    types.ID
 	Name      string
 	Email     string
 	Phone     string

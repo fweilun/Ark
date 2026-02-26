@@ -3,8 +3,12 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
+
+	"ark/internal/types"
 )
 
 var (
@@ -39,6 +43,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (*User, error) 
 		return nil, ErrBadRequest
 	}
 	u := &User{
+		UserID:    newID(),
 		Name:      cmd.Name,
 		Email:     cmd.Email,
 		Phone:     cmd.Phone,
@@ -52,25 +57,31 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (*User, error) 
 }
 
 // GetByID retrieves a user by their user_id.
-func (s *Service) GetByID(ctx context.Context, id int) (*User, error) {
-	if id <= 0 {
+func (s *Service) GetByID(ctx context.Context, id types.ID) (*User, error) {
+	if id == "" {
 		return nil, ErrBadRequest
 	}
 	return s.store.GetByID(ctx, id)
 }
 
 // UpdateName updates only the name of the user with the given id.
-func (s *Service) UpdateName(ctx context.Context, id int, name string) error {
-	if id <= 0 || name == "" {
+func (s *Service) UpdateName(ctx context.Context, id types.ID, name string) error {
+	if id == "" || name == "" {
 		return ErrBadRequest
 	}
 	return s.store.UpdateName(ctx, id, name)
 }
 
 // Delete removes the user with the given id.
-func (s *Service) Delete(ctx context.Context, id int) error {
-	if id <= 0 {
+func (s *Service) Delete(ctx context.Context, id types.ID) error {
+	if id == "" {
 		return ErrBadRequest
 	}
 	return s.store.Delete(ctx, id)
+}
+
+func newID() types.ID {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	return types.ID(hex.EncodeToString(b[:]))
 }
