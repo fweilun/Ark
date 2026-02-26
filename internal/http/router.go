@@ -15,6 +15,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/user"
 )
 
 func NewRouter(
@@ -25,6 +26,7 @@ func NewRouter(
 	aiService *aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
+	userService *user.Service,
 	tokenVerifier middleware.TokenVerifier,
 ) *gin.Engine {
 	// r := gin.New()
@@ -85,6 +87,13 @@ func NewRouter(
 	api.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
 	api.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
 	api.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+
+	// users
+	userHandler := handlers.NewUserHandler(userService)
+	r.POST("/api/users", userHandler.CreateUser)
+	api.GET("/api/me", userHandler.GetMe)
+	api.PATCH("/api/me", userHandler.UpdateMe)
+	api.DELETE("/api/me", userHandler.DeleteMe)
 
 	return r
 }
