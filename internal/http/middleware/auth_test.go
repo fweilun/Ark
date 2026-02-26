@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +67,13 @@ func TestAuth_MissingHeader(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
 	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("could not decode response body: %v", err)
+	}
+	if body["error"] == "" {
+		t.Fatal("expected non-empty error message in response body")
+	}
 }
 
 func TestAuth_InvalidBearerFormat(t *testing.T) {
@@ -79,6 +87,13 @@ func TestAuth_InvalidBearerFormat(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", w.Code)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("could not decode response body: %v", err)
+	}
+	if body["error"] == "" {
+		t.Fatal("expected non-empty error message in response body")
 	}
 }
 
@@ -104,9 +119,31 @@ func TestAuth_NilVerifier_PassesThrough(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	// Nil verifier bypasses auth; handler sees no user_id and returns 401 from handler logic.
+	// Nil verifier (dev mode) injects "dev-user-id" and passes through to the handler.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (dev-user-id injected by nil verifier), got %d: %s", w.Code, w.Body.String())
+	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("could not decode response body: %v", err)
+	}
+	if body["user_id"] != "dev-user-id" {
+		t.Fatalf("expected user_id=dev-user-id, got %q", body["user_id"])
+	}
+}
+
+func TestAuth_EmptyBearerToken(t *testing.T) {
+	// "Bearer " with no actual token — should be rejected as unauthorized.
+	r := newTestRouter(&fakeVerifier{uid: "user-xyz"})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
 	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 (no user_id from nil verifier), got %d", w.Code)
+		t.Fatalf("expected 401 for empty bearer token, got %d", w.Code)
 	}
 }
 

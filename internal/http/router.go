@@ -32,55 +32,59 @@ func NewRouter(
 	// r.Use(middleware.Logging())
 
 	r := gin.Default()
-	r.Use(middleware.Auth(tokenVerifier))
 
-	orderHandler := handlers.NewOrderHandler(orderService)
-	// passenger — instant order
-	r.POST("/api/orders", orderHandler.Create)
-	r.GET("/api/orders/:id/status", orderHandler.Status)
-	r.POST("/api/orders/:id/cancel", orderHandler.Cancel)
-	// passenger — scheduled order
-	r.POST("/api/orders/scheduled", orderHandler.CreateScheduled)
-	r.GET("/api/orders/scheduled", orderHandler.ListScheduledByPassenger)
-	r.GET("/api/orders/scheduled/available", orderHandler.ListAvailableScheduled)
-	// driver — instant order
-	r.POST("/api/orders/:id/match", orderHandler.Match)
-	r.POST("/api/orders/:id/accept", orderHandler.Accept)
-	r.POST("/api/orders/:id/deny", orderHandler.Deny)
-	r.POST("/api/orders/:id/arrived", orderHandler.Arrive)
-	r.POST("/api/orders/:id/meet", orderHandler.Meet)
-	r.POST("/api/orders/:id/complete", orderHandler.Complete)
-	r.POST("/api/orders/:id/pay", orderHandler.Pay)
-	// driver — scheduled order
-	r.POST("/api/orders/:id/claim", orderHandler.Claim)
-	r.POST("/api/orders/:id/driver-cancel", orderHandler.DriverCancel)
-
-	// ai model
-	aiHandler := handlers.NewAIHandler(aiService)
-	r.POST("/api/ai/chat", aiHandler.Chat)
-
-	// location udpate
-	locationHandler := handlers.NewLocationHandler(locationService)
-	r.PUT("/api/drivers/:id/location", locationHandler.Update)
-
-	// notifications
-	notificationHandler := handlers.NewNotificationHandler(notificationService)
-	r.POST("/api/notifications/register", notificationHandler.EnsureDevice)
-	// [TODO] for staff only
-	// r.POST("/api/notifications/send", notificationHandler.SendNotification)
-
+	// Public endpoints — no authentication required.
 	r.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "OK")
 	})
 
+	// All API routes require authentication.
+	api := r.Group("/")
+	api.Use(middleware.Auth(tokenVerifier))
+
+	orderHandler := handlers.NewOrderHandler(orderService)
+	// passenger — instant order
+	api.POST("/api/orders", orderHandler.Create)
+	api.GET("/api/orders/:id/status", orderHandler.Status)
+	api.POST("/api/orders/:id/cancel", orderHandler.Cancel)
+	// passenger — scheduled order
+	api.POST("/api/orders/scheduled", orderHandler.CreateScheduled)
+	api.GET("/api/orders/scheduled", orderHandler.ListScheduledByPassenger)
+	api.GET("/api/orders/scheduled/available", orderHandler.ListAvailableScheduled)
+	// driver — instant order
+	api.POST("/api/orders/:id/match", orderHandler.Match)
+	api.POST("/api/orders/:id/accept", orderHandler.Accept)
+	api.POST("/api/orders/:id/deny", orderHandler.Deny)
+	api.POST("/api/orders/:id/arrived", orderHandler.Arrive)
+	api.POST("/api/orders/:id/meet", orderHandler.Meet)
+	api.POST("/api/orders/:id/complete", orderHandler.Complete)
+	api.POST("/api/orders/:id/pay", orderHandler.Pay)
+	// driver — scheduled order
+	api.POST("/api/orders/:id/claim", orderHandler.Claim)
+	api.POST("/api/orders/:id/driver-cancel", orderHandler.DriverCancel)
+
+	// ai model
+	aiHandler := handlers.NewAIHandler(aiService)
+	api.POST("/api/ai/chat", aiHandler.Chat)
+
+	// location update
+	locationHandler := handlers.NewLocationHandler(locationService)
+	api.PUT("/api/drivers/:id/location", locationHandler.Update)
+
+	// notifications
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	api.POST("/api/notifications/register", notificationHandler.EnsureDevice)
+	// [TODO] for staff only
+	// api.POST("/api/notifications/send", notificationHandler.SendNotification)
+
 	// calendar
 	calendarHandler := handlers.NewCalendarHandler(calendarService)
-	r.POST("/api/calendar/events", calendarHandler.CreateEvent)
-	r.PUT("/api/calendar/events/:id", calendarHandler.EditEvent)
-	r.DELETE("/api/calendar/events/:id", calendarHandler.DeleteEvent)
-	r.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
-	r.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
-	r.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+	api.POST("/api/calendar/events", calendarHandler.CreateEvent)
+	api.PUT("/api/calendar/events/:id", calendarHandler.EditEvent)
+	api.DELETE("/api/calendar/events/:id", calendarHandler.DeleteEvent)
+	api.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
+	api.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
+	api.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
 
 	return r
 }

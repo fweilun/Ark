@@ -41,6 +41,10 @@ func Auth(verifier TokenVerifier) gin.HandlerFunc {
 			return
 		}
 		idToken := strings.TrimPrefix(authHeader, "Bearer ")
+		if idToken == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid Authorization header"})
+			return
+		}
 		token, err := verifier.VerifyIDToken(c.Request.Context(), idToken)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})

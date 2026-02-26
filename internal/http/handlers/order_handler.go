@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -430,7 +431,10 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 		return
 	}
 	var req driverCancelReq
-	_ = c.ShouldBindJSON(&req) // reason is optional
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		writeError(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{
 		OrderID:  types.ID(id),
 		DriverID: types.ID(driverID),
