@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"ark/internal/contextkey"
+	"ark/internal/http/middleware"
 	"ark/internal/types"
 )
 
@@ -78,7 +78,7 @@ func setupRouter(svc *Service) *gin.Engine {
 
 // withUserID injects a user_id into the request context to simulate an authenticated request.
 func withUserID(req *http.Request, userID string) *http.Request {
-	ctx := context.WithValue(req.Context(), contextkey.UserID, userID)
+	ctx := middleware.WithUserIDContext(req.Context(), userID)
 	return req.WithContext(ctx)
 }
 

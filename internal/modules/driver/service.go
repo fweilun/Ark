@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"ark/internal/contextkey"
+	"ark/internal/http/middleware"
 	"ark/internal/types"
 )
 
@@ -70,11 +70,7 @@ func (s *Service) DriverInfo(ctx context.Context, driverID types.ID) (*Driver, e
 // userIDFromCtx extracts the authenticated user's ID from the Go request context.
 // Returns ("", false) if the context carries no user_id (unauthenticated request).
 func userIDFromCtx(ctx context.Context) (types.ID, bool) {
-	v := ctx.Value(contextkey.UserID)
-	if v == nil {
-		return "", false
-	}
-	id, ok := v.(string)
+	id, ok := middleware.UserIDFromContext(ctx)
 	if !ok || id == "" {
 		return "", false
 	}
