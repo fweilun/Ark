@@ -12,6 +12,18 @@ import (
 	"ark/internal/types"
 )
 
+// StoreInterface defines the storage operations needed by the calendar service.
+type StoreInterface interface {
+	CreateEvent(ctx context.Context, e *Event) error
+	GetEvent(ctx context.Context, id types.ID) (*Event, error)
+	UpdateEvent(ctx context.Context, e *Event) error
+	DeleteEvent(ctx context.Context, id types.ID) error
+	CreateSchedule(ctx context.Context, sc *Schedule) error
+	GetSchedule(ctx context.Context, uid, eventID types.ID) (*Schedule, error)
+	UpdateScheduleTiedOrder(ctx context.Context, uid, eventID types.ID, orderID *types.ID) error
+	ListSchedulesByUser(ctx context.Context, uid types.ID) ([]*Schedule, error)
+}
+
 // OrderService defines the order operations needed by the calendar service.
 type OrderService interface {
 	Create(ctx context.Context, cmd order.CreateCommand) (types.ID, error)
@@ -20,12 +32,12 @@ type OrderService interface {
 
 // Service orchestrates calendar event and schedule logic.
 type Service struct {
-	store *Store
+	store StoreInterface
 	order OrderService
 }
 
 // NewService creates a Service backed by the given Store and order service.
-func NewService(store *Store, orderSvc OrderService) *Service {
+func NewService(store StoreInterface, orderSvc OrderService) *Service {
 	return &Service{store: store, order: orderSvc}
 }
 
@@ -54,8 +66,8 @@ type EditEventCommand struct {
 // CreateAndTieOrderCommand creates a ride order and ties it to an existing calendar event
 // via a Schedule entry for the given user. The order fields mirror order.CreateCommand.
 type CreateAndTieOrderCommand struct {
-	UID         types.ID   // user who owns the schedule entry
-	EventID     types.ID   // existing event to tie the order to
+	UID         types.ID // user who owns the schedule entry
+	EventID     types.ID // existing event to tie the order to
 	PassengerID types.ID
 	Pickup      types.Point
 	Dropoff     types.Point
