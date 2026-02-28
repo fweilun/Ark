@@ -22,6 +22,13 @@ func (s *Service) Request(ctx context.Context, from, to UserID) error {
 	if from == "" || to == "" || from == to {
 		return ErrBadRequest
 	}
+	exists, err := s.store.HasActiveRelation(ctx, from, to)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrConflict
+	}
 	return s.store.CreateRequest(ctx, from, to)
 }
 
@@ -36,6 +43,13 @@ func (s *Service) RequestByTelephone(ctx context.Context, from UserID, telephone
 	}
 	if target.UserID == from {
 		return ErrBadRequest
+	}
+	exists, err := s.store.HasActiveRelation(ctx, from, target.UserID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrConflict
 	}
 	return s.store.CreateRequest(ctx, from, target.UserID)
 }

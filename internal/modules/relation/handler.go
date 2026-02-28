@@ -12,6 +12,7 @@
 //	POST   /api/relations/requests/:friend_id/reject — reject a received request
 //	GET    /api/relations/friends                — list accepted friends
 //	DELETE /api/relations/friends/:friend_id     — remove a friend
+//	GET    /api/relations/friends/:friend_id/is  — check if :friend_id is a friend
 //
 // Auth: all routes require the Auth middleware to set user_id in context.
 package relation
@@ -215,6 +216,27 @@ func (h *Handler) RemoveFriend(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// IsFriend handles GET /api/relations/friends/:friend_id/is.
+// Returns {"is_friend": true/false} indicating whether :friend_id is an accepted friend.
+func (h *Handler) IsFriend(c *gin.Context) {
+	uid, ok := userIDFromCtx(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	friendID := UserID(c.Param("friend_id"))
+	if friendID == "" {
+		writeError(c, http.StatusBadRequest, "missing friend_id")
+		return
+	}
+	result, err := h.svc.IsFriend(c.Request.Context(), uid, friendID)
+	if err != nil {
+		writeRelationError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]bool{"is_friend": result})
 }
 
 func writeJSON(c *gin.Context, status int, v any) {
