@@ -54,6 +54,9 @@ type IntentResult struct {
 	// SelectedUpgrade is the car type chosen during upsell. Empty = declined.
 	SelectedUpgrade string `json:"selected_upgrade,omitempty"`
 
+	// AutoSelectStop indicates if the AI should automatically pick the best stop.
+	AutoSelectStop bool `json:"auto_select_stop,omitempty"`
+
 	// ExplicitWaypoints lists specific named places the user said to stop at en-route.
 	// This is mutually exclusive with NeedsSearch: when a user names a specific landmark
 	// (e.g. "北一女中", "忠孝SOGO"), the AI puts it here and sets NeedsSearch=false.

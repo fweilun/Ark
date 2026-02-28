@@ -66,7 +66,6 @@ func (g *geminiClient) ParseUserIntent(ctx context.Context, userMessage string, 
 		return nil, fmt.Errorf("gemini: parse JSON response: %w", err)
 	}
 
-
 	return &result, nil
 }
 
@@ -131,6 +130,13 @@ func buildSystemPrompt(ctxMap map[string]string) string {
 		userName = "您"
 	}
 
+	timePrompt := fmt.Sprintf("【重要時間基準】：現在的系統時間是 %s。今天就是這個日期，明天就是加一天。\n", currentTime)
+
+	selectedUpgradePrompt := ""
+	if upgrade := ctxMap["selected_upgrade"]; upgrade != "" {
+		selectedUpgradePrompt = fmt.Sprintf("\n【車型指定防呆】：目前使用者已指定車型為：%s。請勿再次詢問車型升級。\n", upgrade)
+	}
+
 	// Add Dynamic Dining Prompt if the ride booking phase is completed
 	dynamicDiningPrompt := ""
 	if ctxMap["has_dining_intent"] == "true" && ctxMap["ride_fully_booked"] == "true" {
@@ -144,8 +150,7 @@ func buildSystemPrompt(ctxMap map[string]string) string {
 			"叫車已經完成，目前進入「餐飲推薦與訂位」階段。請嚴格遵守以下規則：\n" +
 			"1. Intent 必須是 \"clarification\" (如果還在確認人數或需求) 或是 \"chat\" (純聊天/道別)。\n" +
 			"2. 如果使用者詢問推薦餐廳、不知吃什麼、或說「好啊推薦」，你必須將 \"needs_destination_search\": true。\n" +
-			"3. 【🚨 訂位防呆規則】如果你正在詢問「請問要預約嗎？」或是「請問總共幾位用餐？」，你**絕對必須**將 needs_reservation 設為 false！只有當使用者『明確給出用餐人數』並且『同意訂位』（例如回答：『兩位，幫我訂』）之後，你才可以將 needs_reservation 設為 true。\n" +
-			"4. 注意：不可將『乘車人數』直接當作『用餐人數』而跳過詢問。\n"
+			"3. 【🚨 真實訂位引導】當使用者選定餐廳（例如：『我要隨意鳥地方』）或要求訂位時，你不需再詢問用餐人數。請直接將 needs_reservation 設為 true，並確保 restaurant_name 紀錄該餐廳名稱。系統將自動提供真實的訂位連結與電話給使用者。\n"
 
 		if targetRest != "" && targetRest != dest {
 			dynamicDiningPrompt += "當前狀態：正在詢問使用者是否要預訂 " + targetRest + "。\n"
@@ -155,6 +160,7 @@ func buildSystemPrompt(ctxMap map[string]string) string {
 	}
 
 	return fmt.Sprintf(`Role: You are the elite life-concierge AI for "ZooZoo", a premium ride-hailing app in Taiwan.
+%s%s
 You are not just a dispatcher — you are a proactive, warm, and meticulous personal assistant who anticipates
 the user's needs and takes care of every detail, from transport to dining reservations.
 Always address the user by their name (%s) in a polite, warm tone when you know it.
@@ -214,6 +220,7 @@ RULES:
 4.5. TAIWANESE TIME SHORTHAND (CRITICAL — READ CAREFULLY):
    - Taiwanese users often write time as a digit followed by a period: "7.", "8.", "9." to mean
      "7點", "8點", "9點" (7 o'clock, 8 o'clock, 9 o'clock).
+   - "今晚8." 就是今天日期的 20:00，"明早9." 就是明天日期的 09:00。
    - You MUST strictly separate place names from time tokens:
      - "艋舺雞排7." → place: "艋舺雞排", time: "7點" (NOT place: "艋舺雞排7")
      - "台北車站8." → place: "台北車站", time: "8點"
@@ -290,9 +297,11 @@ RULES:
    ✅ Use natural, conversational Traditional Chinese (台灣繁體中文口語).
    - DO NOT use markdown bolding IN THE reply FIELD.
 
-12. PASSENGER & PET DETECTION (Scan ALL conversation history):
+12. PASSENGER & PET DETECTION & CAR TYPE (Scan ALL conversation history):
    - "passenger_count": Trigger phrases: "我們X個人", "X位", "一行X人". Default: 1. PERSIST across turns.
    - "has_pet": Set true if ANY mention of pet. Trigger: "帶狗", "帶貓", "寵物", "pet". PERSIST: once true, never reset to false.
+   - 【車型偏好提前擷取】：如果使用者在對話中主動提及『一般車輛』、『不用升級』、『帶狗』、『6個人』等車型/人數暗示，你必須立刻將其判定並填寫至 selected_upgrade 欄位（如：填入 一般車型），不得遺漏。
+   - 【授權決策鐵律】：只要使用者句子中包含『直接幫我選』、『隨便一間』、『你決定』，你必須回傳 "auto_select_stop": true，不准漏掉！
 
 13. UPSELL RESPONSE & COMPLETED STATE (CRITICAL):
    - IF conversation history shows ZooZoo already asked an upsell question AND user is responding:
@@ -306,9 +315,9 @@ RULES:
    - OR IF the destination is naturally a restaurant (e.g., "MUME", "鼎泰豐", "Raw", "教父牛排", "屋馬烤肉").
    - THEN you MUST set "is_dining_intent": true.
    - If a specific restaurant is named or confirmed, extract it to "restaurant_name".
-   - IF the user EXPLICITLY CONFIRMS a reservation (e.g., "好，幫我訂", "幫我預約"):
+   - IF the user EXPLICITLY CONFIRMS a reservation (e.g., "我要隨意鳥地方", "好，幫我訂", "幫我預約"):
      - MUST set "needs_reservation": true.
-     - You MUST STILL ensure "intent" is "clarification" so the backend can process the Inline API.
+     - You MUST STILL ensure "intent" is "clarification" so the backend can process the booking redirect.
    - IF the user DECLINES the DINING prompt (e.g., "不用自己訂", "不要餐廳"):
      - You MUST set "is_dining_intent": false and "needs_reservation": false.
 
@@ -331,10 +340,11 @@ RULES:
   "iso_time": "YYYY-MM-DDTHH:mm:ssZ07:00 (RFC3339 with Offset)" | null,
   "passenger_count": integer (default 1),
   "has_pet": boolean (default false),
+  "auto_select_stop": boolean (若使用者說「直接幫我選」、「隨便一間」、「你決定」，必須設為 true，否則 false),
   "selected_upgrade": "string (car type chosen by user, empty = declined)",
   "reply": "string (User facing response)"
 }
-`, userName, currentTime, userLocation, userContextInfo, dynamicDiningPrompt)
+`, timePrompt, selectedUpgradePrompt, userName, currentTime, userLocation, userContextInfo, dynamicDiningPrompt)
 }
 
 // cleanJSONString removes markdown code fences that some models emit despite JSON mode.

@@ -39,18 +39,20 @@ func isTimePrecise(isoTime *string) bool {
 
 // TripPlanner orchestrates the AI intent parsing and Google Maps routing.
 type TripPlanner struct {
-	aiProvider       aiusage.AIClient
-	routeService     *maps.RouteService
-	placesService    places.Service
-	loc              *time.Location
-	userName         string
-	userPhone        string
-	HasDiningIntent  bool
-	TargetRestaurant string
-	DiningPrompted   bool
-	LastDestination  string
-	RideFullyBooked  bool
-	CurrentState     string
+	aiProvider           aiusage.AIClient
+	routeService         *maps.RouteService
+	placesService        places.Service
+	loc                  *time.Location
+	userName             string
+	userPhone            string
+	HasDiningIntent      bool
+	TargetRestaurant     string
+	DiningPrompted       bool
+	LastDestination      string
+	LastIntermediateStop string
+	SelectedUpgrade      string
+	RideFullyBooked      bool
+	CurrentState         string
 }
 
 // NewTripPlanner creates a TripPlanner with initialized dependencies.
@@ -85,7 +87,11 @@ func resolveCarType(passengerCount int, hasPet bool) (carType string, specialNot
 }
 
 // carTypeFooter builds the third section of the booking response.
-func carTypeFooter(carType, specialNotice string) string {
+func (p *TripPlanner) carTypeFooter(carType, specialNotice string) string {
+	if p.SelectedUpgrade != "" {
+		return fmt.Sprintf("\n\n沒問題，已為您安排 **%s**。", p.SelectedUpgrade)
+	}
+
 	switch {
 	case specialNotice != "":
 		return "\n\n⚠️ " + specialNotice
@@ -94,6 +100,20 @@ func carTypeFooter(carType, specialNotice string) string {
 	default:
 		return "\n\n請問需要為您升級為《豪華速速》，或是特殊車輛（如寵物、大容量）嗎？"
 	}
+}
+
+// fmtWithWeekday formats the time into M/DD (ChineseWeekday) HH:MM
+func fmtWithWeekday(t time.Time) string {
+	weekdayMap := map[time.Weekday]string{
+		time.Sunday:    "週日",
+		time.Monday:    "週一",
+		time.Tuesday:   "週二",
+		time.Wednesday: "週三",
+		time.Thursday:  "週四",
+		time.Friday:    "週五",
+		time.Saturday:  "週六",
+	}
+	return fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
 }
 
 // PlanTrip processes a user message and returns a conversational response with trip details.
@@ -110,6 +130,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		"dining_prompted":   fmt.Sprintf("%v", p.DiningPrompted),
 		"destination":       p.LastDestination,
 		"ride_fully_booked": fmt.Sprintf("%v", p.RideFullyBooked),
+		"selected_upgrade":  p.SelectedUpgrade,
 	}
 
 	// 2. Call AI to Parse Intent
@@ -118,6 +139,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		log.Printf("AI Error: %v", err)
 		return "", fmt.Errorf("ai error: %w", err)
 	}
+	log.Printf("[DEBUG] Parsed selected_upgrade from LLM: '%s', Current Intent: '%s'", intent.SelectedUpgrade, intent.Intent)
 
 	// 2.1 TRULY PERSISTENT STATE RECOVERY (State Latching)
 	if intent.IsDiningIntent {
@@ -128,6 +150,12 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 	}
 	if intent.Destination != nil && *intent.Destination != "" {
 		p.LastDestination = *intent.Destination
+	}
+	if intent.SelectedUpgrade != "" {
+		p.SelectedUpgrade = intent.SelectedUpgrade
+	} else if p.SelectedUpgrade != "" {
+		// Strictly preserve SelectedUpgrade if the AI drops it in subsequent parses
+		intent.SelectedUpgrade = p.SelectedUpgrade
 	}
 
 	// If persistent state is active, check if we need to clear it or apply it
@@ -194,31 +222,16 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		}
 
 		// 2. 情況 C：【核心修復】確認訂位
-		// 只有在使用者明確答覆人數並且同意後，這個 flag 才會是 true
 		if intent.NeedsReservation {
-			var t time.Time
-			if intent.ISOTime != nil {
-				t, _ = time.Parse(time.RFC3339, *intent.ISOTime)
-			}
-			dest := p.LastDestination
 			rName := intent.RestaurantName
 			if rName == "" {
-				rName = dest
+				rName = p.LastDestination
 			}
-			timeStr := "抵達時"
-			if !t.IsZero() {
-				weekdayMap := map[time.Weekday]string{
-					time.Sunday: "週日", time.Monday: "週一", time.Tuesday: "週二",
-					time.Wednesday: "週三", time.Thursday: "週四", time.Friday: "週五",
-					time.Saturday: "週六",
-				}
-				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
-			}
-			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
+			inlineMsg := p.buildRealBookingMessage(ctx, rName, p.LastDestination)
 
 			p.HasDiningIntent = false
-			p.CurrentState = ""
-			return inlineMsg + "\n\n請於用餐時間準時到場，祝您用餐愉快！", nil
+			p.CurrentState = "completed"
+			return inlineMsg, nil
 		}
 
 		// 3. 【防吞噬防線】情況 B / 其他所有情況
@@ -231,6 +244,11 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		// ── BACKEND ORIGIN GUARD ─────────────────────────────────────────
 		// Refuse to search if we don't have a meaningful start location.
 		// "Current Location" without real coordinates is not usable for route-based search.
+		if (origin == "" || origin == "Current Location" || origin == "UNKNOWN_LOCATION") && (intent.StartLocation == nil || *intent.StartLocation == "") {
+			p.CurrentState = "clarification"
+			return "收到您的中途停靠需求！為了幫您準確尋找順路的店家，請問您的【出發地點】是哪裡呢？", nil
+		}
+
 		originIsKnown := origin != "" && origin != "Current Location" && origin != "UNKNOWN_LOCATION"
 		if !originIsKnown {
 			return "收到您的需求！請問您預計從哪裡出發，以便為您尋找順路的地點？", nil
@@ -391,6 +409,76 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 
 		bestOption := recommendations[0]
 
+		// 【新增功能】AutoSelectStop: 直接結案，跳過等待使用者確認
+		if intent.AutoSelectStop {
+			p.CurrentState = "completed"
+			p.LastIntermediateStop = bestOption.Place.Name
+
+			replyMsg := fmt.Sprintf("收到！已直接為您挑選最順路的高評分店家： **%s** 作為中途停靠站。\n\n", bestOption.Place.Name)
+
+			// 決定車型與警告
+			carType, specialNotice := resolveCarType(intent.PassengerCount, intent.HasPet)
+
+			// 決定時間
+			var departureTime, requiredArrivalTime time.Time
+			isArrival := intent.TimeType != nil && *intent.TimeType == "arrival_time"
+			totalDuration := directDur + bestOption.Detour + activityBuffer
+
+			if isArrival && !targetTime.IsZero() {
+				requiredArrivalTime = targetTime
+				departureTime = targetTime.Add(-totalDuration)
+				if departureTime.Before(now) {
+					delay := now.Add(totalDuration).Sub(targetTime)
+					replyMsg += fmt.Sprintf("⚠️ 提醒：距離 %s 抵達 %s 時間緊迫，預計將延遲 %.0f 分鐘抵達。\n",
+						fmtWithWeekday(targetTime), dest, delay.Minutes())
+					departureTime = now
+					requiredArrivalTime = now.Add(totalDuration)
+				}
+				replyMsg += fmt.Sprintf("將於 **%s** 從 %s 出發，中途停靠 **%s**（約 10 分鐘），預計於 **%s** 抵達 %s。",
+					fmtWithWeekday(departureTime), origin, bestOption.Place.Name,
+					fmtWithWeekday(requiredArrivalTime), dest)
+			} else {
+				if !targetTime.IsZero() {
+					departureTime = targetTime
+				} else {
+					departureTime = now
+				}
+				requiredArrivalTime = departureTime.Add(totalDuration)
+				replyMsg += fmt.Sprintf("將於 **%s** 從 %s 出發，中途停靠 **%s**（約 10 分鐘），預計於 **%s** 抵達 %s。",
+					fmtWithWeekday(departureTime), origin, bestOption.Place.Name,
+					fmtWithWeekday(requiredArrivalTime), dest)
+			}
+
+			// 加上已經記住的車型
+			if p.SelectedUpgrade != "" {
+				replyMsg += fmt.Sprintf("\n\n沒問題，已為您安排 **%s**。", p.SelectedUpgrade)
+			} else {
+				if carType == "寵物專車" || carType == "六人座大車" {
+					replyMsg += fmt.Sprintf("\n\n已自動為您安排 **%s**。", carType)
+				} else {
+					replyMsg += "\n\n已自動為您安排 **一般車型**。"
+				}
+				if specialNotice != "" {
+					replyMsg += "\n⚠️ " + specialNotice
+				}
+			}
+
+			// 加上花店/停靠站電話
+			_, phone, _ := p.placesService.GetPlaceContactInfo(ctx, bestOption.Place.Name, dest)
+			if phone != "" {
+				replyMsg += fmt.Sprintf("\n\n🌸 附上店家聯絡電話：%s，建議先打電話預訂商品喔！", phone)
+			}
+
+			// 如果還有餐廳訂位意圖，可以交給 wrapBookingResponse 處理，或者直接回傳結案
+			if intent.NeedsReservation || (p.HasDiningIntent && !p.DiningPrompted) {
+				intent.Intent = "booking"
+				return p.wrapBookingResponse(ctx, intent, replyMsg, dest), nil
+			}
+
+			replyMsg += "\n\n行程已全數確認，司機將準時為您服務！祝您行程順利 🚗"
+			return replyMsg, nil
+		}
+
 		// Detailed Warnings (Reality Check - Strict Pre-calculation)
 		var warningMsg string
 		if !targetTime.IsZero() && intent.TimeType != nil && *intent.TimeType == "arrival_time" {
@@ -464,27 +552,21 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			confirmMsg = fmt.Sprintf("沒問題，已為您升級為【%s】。", intent.SelectedUpgrade)
 		}
 
+		// 【新增功能】如果行程中有確認的中途停靠站（例如花店、蛋糕店）
+		if p.LastIntermediateStop != "" {
+			_, phone, _ := p.placesService.GetPlaceContactInfo(ctx, p.LastIntermediateStop, p.LastDestination)
+			if phone != "" {
+				confirmMsg += fmt.Sprintf("\n\n🌸 附上您預計停靠的 **%s** 聯絡電話：%s，建議您可以先打電話預訂商品，節省等候時間喔！", p.LastIntermediateStop, phone)
+			}
+		}
+
 		// 步驟 A (訂位完成)
 		if intent.NeedsReservation {
-			var t time.Time
-			if intent.ISOTime != nil {
-				t, _ = time.Parse(time.RFC3339, *intent.ISOTime)
-			}
-			dest := p.LastDestination
 			rName := intent.RestaurantName
 			if rName == "" {
-				rName = dest
+				rName = p.LastDestination
 			}
-			timeStr := "抵達時"
-			if !t.IsZero() {
-				weekdayMap := map[time.Weekday]string{
-					time.Sunday: "週日", time.Monday: "週一", time.Tuesday: "週二",
-					time.Wednesday: "週三", time.Thursday: "週四", time.Friday: "週五",
-					time.Saturday: "週六",
-				}
-				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
-			}
-			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
+			inlineMsg := p.buildRealBookingMessage(ctx, rName, p.LastDestination)
 
 			// Mark dining flow as entirely resolved since it's booked
 			p.HasDiningIntent = false
@@ -533,12 +615,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			}
 			timeStr := "抵達時"
 			if !t.IsZero() {
-				weekdayMap := map[time.Weekday]string{
-					time.Sunday: "週日", time.Monday: "週一", time.Tuesday: "週二",
-					time.Wednesday: "週三", time.Thursday: "週四", time.Friday: "週五",
-					time.Saturday: "週六",
-				}
-				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
+				timeStr = fmtWithWeekday(t)
 			}
 			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
 
@@ -597,22 +674,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 	var totalDuration time.Duration
 	var responseMsg string
 
-	// Format times for display (M/DD (ChineseWeekday) HH:mm)
-	// e.g., "2/17 (週二) 22:00"
-	weekdayMap := map[time.Weekday]string{
-		time.Sunday:    "週日",
-		time.Monday:    "週一",
-		time.Tuesday:   "週二",
-		time.Wednesday: "週三",
-		time.Thursday:  "週四",
-		time.Friday:    "週五",
-		time.Saturday:  "週六",
-	}
-	fmtWithWeekday := func(t time.Time) string {
-		return fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
-	}
-
-	// 6a. EXPLICIT WAYPOINTS — user named specific places; no detour filter, direct route.
+	// 6. Calculate Ride via Maps API (Standard Booking)
 	if len(intent.ExplicitWaypoints) > 0 {
 		// Use first waypoint (multi-waypoint support can extend this loop).
 		waypoint := intent.ExplicitWaypoints[0]
@@ -655,8 +717,8 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 				warning, waypoint,
 				fmtWithWeekday(targetTime), destination,
 				fmtWithWeekday(departureTime),
-				carTypeFooter(carType, specialNotice))
-			return p.appendDiningPrompt(intent, msg, targetTime, destination), nil
+				p.carTypeFooter(carType, specialNotice))
+			return p.wrapBookingResponse(ctx, intent, msg, destination), nil
 		}
 
 		// Forward scheduling or no time specified.
@@ -669,13 +731,14 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			waypoint,
 			fmtWithWeekday(departureTime), origin, waypoint,
 			fmtWithWeekday(estimatedArrival), destination,
-			carTypeFooter(carType, specialNotice))
-		return p.appendDiningPrompt(intent, msg, targetTime, destination), nil
+			p.carTypeFooter(carType, specialNotice))
+		return p.wrapBookingResponse(ctx, intent, msg, destination), nil
 	}
 
 	// 6b. INTERMEDIATE STOP (from search selection / confirmed stop via AI):
 	if intent.IntermediateStop != nil && *intent.IntermediateStop != "" {
 		stop := *intent.IntermediateStop
+		p.LastIntermediateStop = stop
 
 		// Parse target time first so we can pass it to Maps for traffic-aware estimates.
 		var targetTime time.Time
@@ -726,13 +789,13 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 				responseMsg = fmt.Sprintf("%s收到！已幫您預約叫車。\n已煤安排從 %s 出發，中途停靠 **%s**，預計於 **%s** 抵達 %s（延遲 %.0f 分鐘）。%s",
 					warningMsg, origin, stop,
 					fmtWithWeekday(requiredArrivalTime), destination, delay.Minutes(),
-					carTypeFooter(carType, specialNotice))
+					p.carTypeFooter(carType, specialNotice))
 			} else {
 				// On time — show the reverse-calculated departure.
 				responseMsg = fmt.Sprintf("收到！已幫您預約叫車。\n為了讓您在 **%s** 準時抵達 %s，將於 **%s** 從 %s 出發，中途停靠 **%s**（約 10 分鐘）。%s",
 					fmtWithWeekday(requiredArrivalTime), destination,
 					fmtWithWeekday(departureTime), origin, stop,
-					carTypeFooter(carType, specialNotice))
+					p.carTypeFooter(carType, specialNotice))
 			}
 		} else {
 			// ── FORWARD SCHEDULING ──────────────────────────────────────────
@@ -746,10 +809,10 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			responseMsg = fmt.Sprintf("收到！已幫您預約叫車。\n將於 **%s** 從 %s 出發，中途停靠 **%s**（約 10 分鐘），預計於 **%s** 抵達 %s。%s",
 				fmtWithWeekday(departureTime), origin, stop,
 				fmtWithWeekday(requiredArrivalTime), destination,
-				carTypeFooter(carType, specialNotice))
+				p.carTypeFooter(carType, specialNotice))
 		}
 
-		return p.appendDiningPrompt(intent, responseMsg, targetTime, destination), nil
+		return p.wrapBookingResponse(ctx, intent, responseMsg, destination), nil
 	}
 
 	// Standard Direct Trip
@@ -804,45 +867,70 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			fmtWithWeekday(targetTime), destination,
 			fmtWithWeekday(suggestedPickup), origin,
 			duration.Minutes(),
-			carTypeFooter(carType, specialNotice))
+			p.carTypeFooter(carType, specialNotice))
 	} else if timeType == "pickup_time" {
 		// Forward scheduling: user picked a departure time.
 		estimatedArrival := targetTime.Add(duration)
 		responseMsg = fmt.Sprintf("收到！已幫您預約叫車。\n將於 **%s** 從 %s 出發前往 %s。預計車程 %.0f 分鐘，於 **%s** 抵達。%s",
 			fmtWithWeekday(targetTime), origin, destination,
 			duration.Minutes(), fmtWithWeekday(estimatedArrival),
-			carTypeFooter(carType, specialNotice))
+			p.carTypeFooter(carType, specialNotice))
 	} else {
 		// Fallback — no time info.
 		responseMsg = fmt.Sprintf("收到！已幫您預約叫車。從 %s 去 %s 車程約 %.0f 分鐘。%s",
 			origin, destination, duration.Minutes(),
-			carTypeFooter(carType, specialNotice))
+			p.carTypeFooter(carType, specialNotice))
 	}
 
-	return responseMsg, nil
+	return p.wrapBookingResponse(ctx, intent, responseMsg, destination), nil
 }
 
-// appendDiningPrompt appends post-booking dining or reservation text to the base response message.
-// It intercepts "booking" / "needs_reservation" signals and appends or prepends Inline mock strings.
-func (p *TripPlanner) appendDiningPrompt(intent *aiusage.IntentResult, baseMsg string, targetTime time.Time, dest string) string {
-	if intent.NeedsReservation {
-		// Mock booking confirmation
-		timeStr := "抵達時"
-		if !targetTime.IsZero() {
-			weekdayMap := map[time.Weekday]string{
-				time.Sunday: "週日", time.Monday: "週一", time.Tuesday: "週二",
-				time.Wednesday: "週三", time.Thursday: "週四", time.Friday: "週五",
-				time.Saturday: "週六",
+// wrapBookingResponse handles the final booking sequence, including the upsell bypass and dining recommendations.
+func (p *TripPlanner) wrapBookingResponse(ctx context.Context, intent *aiusage.IntentResult, baseMsg string, dest string) string {
+	// If the user already provided a car type upgrade preference, we bypass the upsell dialog.
+	if p.SelectedUpgrade != "" && intent.Intent == "booking" {
+		p.CurrentState = "completed"
+
+		// 1. Check for Intermediate Stop Contact Info
+		if p.LastIntermediateStop != "" {
+			_, phone, _ := p.placesService.GetPlaceContactInfo(ctx, p.LastIntermediateStop, p.LastDestination)
+			if phone != "" {
+				baseMsg += fmt.Sprintf("\n\n🌸 附上您預計停靠的 **%s** 聯絡電話：%s，建議您可以先打電話預訂商品，節省等候時間喔！", p.LastIntermediateStop, phone)
 			}
-			timeStr = fmt.Sprintf("%s (%s) %s", targetTime.Format("1/02"), weekdayMap[targetTime.Weekday()], targetTime.Format("15:04"))
 		}
 
+		// 2. Check for Dining Concierge
+		if intent.NeedsReservation {
+			rName := intent.RestaurantName
+			if rName == "" {
+				rName = dest
+			}
+			inlineMsg := p.buildRealBookingMessage(ctx, rName, dest)
+			p.HasDiningIntent = false
+			return baseMsg + "\n\n" + inlineMsg + "\n\n行程已全數確認，司機將準時為您服務！祝您行程順利 🚗"
+		}
+
+		if p.HasDiningIntent && !p.DiningPrompted {
+			p.CurrentState = "dining_concierge"
+			p.DiningPrompted = true
+			if intent.RestaurantName != "" {
+				return baseMsg + fmt.Sprintf("\n\n偵測到您將前往 %s，請問需要幫您以預設資訊（%s / %s）透過 Inline 進行訂位嗎？", intent.RestaurantName, p.userName, maskedPhone(p.userPhone))
+			}
+			return baseMsg + "\n\n另外發現您打算用餐，請問已選好餐廳了嗎？還是需要為您推薦目的地附近的熱門餐廳？"
+		}
+
+		// 3. Complete without Dining
+		return baseMsg + "\n\n行程已全數確認，司機將準時為您服務！祝您行程順利 🚗"
+	}
+
+	// Normal non-bypassed sequence (upsell prompt was just asked, waiting for user reply)
+	if intent.NeedsReservation {
 		rName := intent.RestaurantName
 		if rName == "" {
 			rName = dest
 		}
 
-		inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
+		inlineMsg := p.buildRealBookingMessage(ctx, rName, dest)
 		// Booking confirmation takes visual priority, but both belong in response.
 		return inlineMsg + "\n\n" + baseMsg
 	}
@@ -856,6 +944,31 @@ func (p *TripPlanner) appendDiningPrompt(intent *aiusage.IntentResult, baseMsg s
 	}
 
 	return baseMsg + "\n\n另外發現您打算用餐，請問已選好餐廳了嗎？還是需要為您推薦目的地附近的熱門餐廳？"
+}
+
+// buildRealBookingMessage constructs the booking redirect message with real contact info.
+func (p *TripPlanner) buildRealBookingMessage(ctx context.Context, rName string, dest string) string {
+	website, phone, _ := p.placesService.GetPlaceContactInfo(ctx, rName, dest)
+
+	replyMsg := fmt.Sprintf("沒問題！為您找到 **%s** 的預約資訊：\n\n", rName)
+
+	hasInfo := false
+	if website != "" {
+		replyMsg += fmt.Sprintf("🔗 **線上訂位/官網：** %s\n", website)
+		hasInfo = true
+	}
+	if phone != "" {
+		replyMsg += fmt.Sprintf("📞 **聯絡電話：** %s\n", phone)
+		hasInfo = true
+	}
+
+	if !hasInfo {
+		replyMsg += "抱歉，目前無法在網路上找到該餐廳的直接預約網址或電話，建議您直接前往或透過 Google 搜尋。\n\n"
+	} else {
+		replyMsg += "\n請點擊上方連結或撥打電話完成保留。祝您用餐愉快！"
+	}
+
+	return replyMsg
 }
 
 // maskedPhone formats the phone number to hide the middle digits.

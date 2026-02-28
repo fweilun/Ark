@@ -13,6 +13,7 @@ type Service interface {
 	SearchNearby(ctx context.Context, location string, query string, opts *SearchOptions) ([]Place, error)
 	SearchAlongRoute(ctx context.Context, waypoints []string, query string, opts *SearchOptions) ([]Place, error)
 	SearchAtDestination(ctx context.Context, destinationStr string, query string) ([]Place, error)
+	GetPlaceContactInfo(ctx context.Context, placeName string, locationContext string) (website string, phone string, err error)
 }
 
 type placesService struct {
@@ -193,4 +194,44 @@ func (s *placesService) SearchAtDestination(ctx context.Context, destinationStr 
 	}
 
 	return results, nil
+}
+
+// GetPlaceContactInfo retrieves the website and formatted phone number for a specific place.
+func (s *placesService) GetPlaceContactInfo(ctx context.Context, placeName string, locationContext string) (website string, phone string, err error) {
+	query := placeName
+	if locationContext != "" {
+		query = fmt.Sprintf("%s %s", placeName, locationContext)
+	}
+
+	searchReq := &maps.TextSearchRequest{
+		Query:    query,
+		Language: "zh-TW",
+	}
+
+	searchResp, err := s.client.TextSearch(ctx, searchReq)
+	if err != nil {
+		return "", "", fmt.Errorf("places api text search error: %w", err)
+	}
+
+	if len(searchResp.Results) == 0 {
+		return "", "", nil
+	}
+
+	placeID := searchResp.Results[0].PlaceID
+
+	detailsReq := &maps.PlaceDetailsRequest{
+		PlaceID:  placeID,
+		Language: "zh-TW",
+		Fields: []maps.PlaceDetailsFieldMask{
+			maps.PlaceDetailsFieldMaskWebsite,
+			maps.PlaceDetailsFieldMaskFormattedPhoneNumber,
+		},
+	}
+
+	detailsResp, err := s.client.PlaceDetails(ctx, detailsReq)
+	if err != nil {
+		return "", "", fmt.Errorf("places api details error: %w", err)
+	}
+
+	return detailsResp.Website, detailsResp.FormattedPhoneNumber, nil
 }
