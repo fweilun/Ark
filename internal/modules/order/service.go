@@ -280,8 +280,8 @@ func (s *Service) Rematch(ctx context.Context, cmd RematchCommand) error {
 	})
 }
 
-// ListUrgentPendingOrders returns all scheduled and waiting orders that have not yet
-// passed their deadline, ordered by urgency (earliest first).
+// ListUrgentPendingOrders returns all scheduled and waiting orders whose scheduled time
+// is still in the future (scheduled_at > NOW()), ordered by urgency (earliest scheduled first).
 // Used by the matching module to identify orders requiring driver notification.
 func (s *Service) ListUrgentPendingOrders(ctx context.Context) ([]*Order, error) {
 	return s.store.ListUrgentPendingOrders(ctx)
