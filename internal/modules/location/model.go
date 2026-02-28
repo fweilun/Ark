@@ -50,14 +50,10 @@ type PassengerLocation struct {
 	Status      string
 }
 
-// OrderInfo contains the payload passed to FCM push notifications.
-type OrderInfo struct {
-	OrderID      types.ID
-	PickupLat    float64
-	PickupLng    float64
-	DropoffLat   float64
-	DropoffLng   float64
-	EstimatedFee float64
+// GeoEntry is a single user position used for batch writes to the Redis GEO set.
+type GeoEntry struct {
+	ID  types.ID
+	Pos types.Point
 }
 
 // NearbyUser is the intermediate result from GetNearbyUsersFromRedis.

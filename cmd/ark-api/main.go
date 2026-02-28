@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ark/internal/config"
 	httptransport "ark/internal/http"
@@ -80,6 +81,7 @@ func main() {
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
 
+	go locationSvc.RunRTDBPoller(ctx, 30*time.Second)
 	go matchingSvc.RunScheduler(ctx)
 	go orderSvc.RunTimeoutMonitor(ctx)
 	go orderSvc.RunScheduleIncentiveTicker(ctx)

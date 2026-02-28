@@ -55,7 +55,7 @@ func TestSetGeoAndGetNearbyUsersFromRedis(t *testing.T) {
 	cleanupMember(t, rdb, userType, id)
 	t.Cleanup(func() { cleanupMember(t, rdb, userType, id) })
 
-	if err := store.SetGeo(ctx, id, pos, userType); err != nil {
+	if err := store.SetGeo(ctx, []GeoEntry{{ID: id, Pos: pos}}, userType); err != nil {
 		t.Fatalf("SetGeo: %v", err)
 	}
 
@@ -102,7 +102,7 @@ func TestGetNearbyUsersFromRedis_LazyDeletion(t *testing.T) {
 	cleanupMember(t, rdb, userType, id)
 	t.Cleanup(func() { cleanupMember(t, rdb, userType, id) })
 
-	if err := store.SetGeo(ctx, id, pos, userType); err != nil {
+	if err := store.SetGeo(ctx, []GeoEntry{{ID: id, Pos: pos}}, userType); err != nil {
 		t.Fatalf("SetGeo: %v", err)
 	}
 

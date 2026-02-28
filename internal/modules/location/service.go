@@ -1,9 +1,8 @@
-// README: Location service orchestrates Redis GEO queries and Firebase dual-write.
+// README: Location service owns the RTDB→Redis sync poller and geo query helpers.
 package location
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 )
@@ -16,18 +15,42 @@ func NewService(store *Store) *Service {
 	return &Service{store: store}
 }
 
-// Update writes the user's position to Redis (for backend geo queries) and to
-// Firebase RTDB (for frontend real-time listening). Both writes must succeed.
-func (s *Service) Update(ctx context.Context, u Update) error {
-	if err := s.store.SetGeo(ctx, u.UserID, u.Position, u.UserType); err != nil {
-		log.Printf("location: Redis SetGeo failed for %s %s: %v", u.UserType, u.UserID, err)
-		return fmt.Errorf("updating Redis geo: %w", err)
+// RunRTDBPoller periodically fetches active user positions from Firebase RTDB
+// and syncs them into the Redis GEO index. It blocks until ctx is cancelled.
+func (s *Service) RunRTDBPoller(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	log.Printf("location: RTDB poller started (interval=%s)", interval)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("location: RTDB poller stopped")
+			return
+		case <-ticker.C:
+			s.syncRTDBToRedis(ctx)
+		}
 	}
-	if err := s.store.WriteLocation(ctx, u.UserID, u.Position, u.UserType); err != nil {
-		log.Printf("location: Firebase write failed for %s %s: %v", u.UserType, u.UserID, err)
-		return fmt.Errorf("updating Firebase location: %w", err)
+}
+
+// syncRTDBToRedis is called on each tick; errors are logged and do not stop
+// the poller so a transient RTDB hiccup doesn't break geo queries.
+func (s *Service) syncRTDBToRedis(ctx context.Context) {
+	for _, userType := range []string{"driver", "passenger"} {
+		entries, err := s.store.FetchActiveUsersFromRTDB(ctx, userType)
+		if err != nil {
+			log.Printf("location: poller fetch %s from RTDB: %v", userType, err)
+			continue
+		}
+		if len(entries) == 0 {
+			continue
+		}
+		if err := s.store.SetGeo(ctx, entries, userType); err != nil {
+			log.Printf("location: poller sync %s to Redis: %v", userType, err)
+			continue
+		}
+		log.Printf("location: poller synced %d %ss from RTDB to Redis", len(entries), userType)
 	}
-	return nil
 }
 
 func (s *Service) FlushSnapshot(ctx context.Context, u Update) error {
@@ -77,9 +100,4 @@ func (s *Service) GetNearbyPassengers(ctx context.Context, lat, lng, radiusKm fl
 		}
 	}
 	return result, nil
-}
-
-// NotifyDriverNewOrder delegates FCM push notification to the store.
-func (s *Service) NotifyDriverNewOrder(ctx context.Context, deviceToken string, info OrderInfo) error {
-	return s.store.NotifyDriverNewOrder(ctx, deviceToken, info)
 }

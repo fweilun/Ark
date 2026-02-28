@@ -1,4 +1,4 @@
-// README: Location store backed by Redis GEO, Postgres snapshots, and Firebase RTDB.
+// README: Location store backed by Redis GEO, Postgres snapshots, and Firebase RTDB (read-only).
 package location
 
 import (
@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/db"
-	"firebase.google.com/go/v4/messaging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/api/option"
@@ -29,15 +27,13 @@ const (
 )
 
 type Store struct {
-	db        *pgxpool.Pool
-	redis     *redis.Client
-	fbApp     *firebase.App
-	dbClient  *db.Client
-	msgClient *messaging.Client
+	db       *pgxpool.Pool
+	redis    *redis.Client
+	fbApp    *firebase.App
+	dbClient *db.Client
 }
 
-// NewStore initialises the location store, including the Firebase Admin SDK.
-// The credentials file is read from the project root.
+// NewStore initialises the location store with Firebase RTDB (for polling) and Redis GEO.
 func NewStore(ctx context.Context, dbPool *pgxpool.Pool, redisClient *redis.Client) (*Store, error) {
 	projectID, err := parseProjectID(defaultCredentialsFile)
 	if err != nil {
@@ -57,17 +53,11 @@ func NewStore(ctx context.Context, dbPool *pgxpool.Pool, redisClient *redis.Clie
 		return nil, fmt.Errorf("initialising firebase RTDB client: %w", err)
 	}
 
-	msgClient, err := app.Messaging(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("initialising firebase messaging client: %w", err)
-	}
-
 	return &Store{
-		db:        dbPool,
-		redis:     redisClient,
-		fbApp:     app,
-		dbClient:  dbClient,
-		msgClient: msgClient,
+		db:       dbPool,
+		redis:    redisClient,
+		fbApp:    app,
+		dbClient: dbClient,
 	}, nil
 }
 
@@ -103,18 +93,29 @@ func statusKey(userType string, id types.ID) string {
 	return userType + "_status:" + string(id)
 }
 
-// SetGeo writes the user's position to the Redis GEO sorted set and refreshes
-// their status key with a 60-second TTL in a single pipeline.
-func (s *Store) SetGeo(ctx context.Context, id types.ID, pos types.Point, userType string) error {
+// SetGeo writes a batch of user positions into the Redis GEO sorted set and
+// refreshes each status key with a 60-second TTL, all in a single pipeline.
+func (s *Store) SetGeo(ctx context.Context, entries []GeoEntry, userType string) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	geoMembers := make([]*redis.GeoLocation, len(entries))
+	for i, e := range entries {
+		geoMembers[i] = &redis.GeoLocation{
+			Name:      string(e.ID),
+			Longitude: e.Pos.Lng,
+			Latitude:  e.Pos.Lat,
+		}
+	}
+
 	pipe := s.redis.Pipeline()
-	pipe.GeoAdd(ctx, geoSetKey(userType), &redis.GeoLocation{
-		Name:      string(id),
-		Longitude: pos.Lng,
-		Latitude:  pos.Lat,
-	})
-	pipe.Set(ctx, statusKey(userType, id), "1", statusTTL)
+	pipe.GeoAdd(ctx, geoSetKey(userType), geoMembers...)
+	for _, e := range entries {
+		pipe.Set(ctx, statusKey(userType, e.ID), "1", statusTTL)
+	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("SetGeo %s %s: %w", userType, id, err)
+		return fmt.Errorf("SetGeo batch %s (%d entries): %w", userType, len(entries), err)
 	}
 	return nil
 }
@@ -168,8 +169,7 @@ func (s *Store) GetNearbyUsersFromRedis(ctx context.Context, lat, lng, radiusKm 
 	}
 
 	// Lazy deletion: remove stale GEO members in the background so the set
-	// does not grow unboundedly. A detached context prevents cancellation if
-	// the request context ends before the goroutine executes.
+	// does not grow unboundedly.
 	if len(expired) > 0 {
 		key := geoSetKey(userType)
 		go func() {
@@ -183,70 +183,44 @@ func (s *Store) GetNearbyUsersFromRedis(ctx context.Context, lat, lng, radiusKm 
 }
 
 // ---------------------------------------------------------------------------
-// Firebase RTDB writes
+// Firebase RTDB read (used by the background poller)
 // ---------------------------------------------------------------------------
 
-// WriteLocation writes the user's position to the appropriate Firebase RTDB
-// node so the frontend can listen in real time.
-func (s *Store) WriteLocation(ctx context.Context, id types.ID, pos types.Point, userType string) error {
-	node, status := rtdbNodeAndStatus(userType)
-	ref := s.dbClient.NewRef(node + "/" + string(id))
-	entry := map[string]interface{}{
-		"lat":       pos.Lat,
-		"lng":       pos.Lng,
-		"status":    status,
-		"timestamp": time.Now().UnixMilli(),
-	}
-	if err := ref.Set(ctx, entry); err != nil {
-		return fmt.Errorf("Firebase WriteLocation %s %s: %w", userType, id, err)
-	}
-	return nil
+// rtdbUserEntry mirrors a user entry stored in Firebase RTDB.
+type rtdbUserEntry struct {
+	Lat    float64 `json:"lat"`
+	Lng    float64 `json:"lng"`
+	Status string  `json:"status"`
 }
 
 // rtdbNodeAndStatus returns the RTDB node path and the active status string
 // for a given user type.
-func rtdbNodeAndStatus(userType string) (node, status string) {
+func rtdbNodeAndStatus(userType string) (node, activeStatus string) {
 	if userType == "passenger" {
 		return "passenger_locations", "looking_for_ride"
 	}
 	return "driver_locations", "online"
 }
 
-// ---------------------------------------------------------------------------
-// Firebase Cloud Messaging
-// ---------------------------------------------------------------------------
+// FetchActiveUsersFromRTDB reads all currently active users of the given type
+// from Firebase RTDB and returns them as GeoEntry slices ready for SetGeo.
+func (s *Store) FetchActiveUsersFromRTDB(ctx context.Context, userType string) ([]GeoEntry, error) {
+	node, activeStatus := rtdbNodeAndStatus(userType)
+	ref := s.dbClient.NewRef(node)
 
-// NotifyDriverNewOrder sends an FCM data message to the specified driver's device.
-func (s *Store) NotifyDriverNewOrder(ctx context.Context, deviceToken string, info OrderInfo) error {
-	if deviceToken == "" {
-		return fmt.Errorf("empty device token for order %s", string(info.OrderID))
+	var data map[string]rtdbUserEntry
+	if err := ref.OrderByChild("status").EqualTo(activeStatus).Get(ctx, &data); err != nil {
+		return nil, fmt.Errorf("RTDB fetch %s: %w", userType, err)
 	}
 
-	msg := &messaging.Message{
-		Token: deviceToken,
-		Data: map[string]string{
-			"type":          "new_order",
-			"order_id":      string(info.OrderID),
-			"pickup_lat":    strconv.FormatFloat(info.PickupLat, 'f', 6, 64),
-			"pickup_lng":    strconv.FormatFloat(info.PickupLng, 'f', 6, 64),
-			"dropoff_lat":   strconv.FormatFloat(info.DropoffLat, 'f', 6, 64),
-			"dropoff_lng":   strconv.FormatFloat(info.DropoffLng, 'f', 6, 64),
-			"estimated_fee": strconv.FormatFloat(info.EstimatedFee, 'f', 2, 64),
-		},
-		Notification: &messaging.Notification{
-			Title: "New ride request",
-			Body:  fmt.Sprintf("Pickup nearby — estimated fare $%.2f", info.EstimatedFee),
-		},
-		Android: &messaging.AndroidConfig{Priority: "high"},
+	entries := make([]GeoEntry, 0, len(data))
+	for id, e := range data {
+		entries = append(entries, GeoEntry{
+			ID:  types.ID(id),
+			Pos: types.Point{Lat: e.Lat, Lng: e.Lng},
+		})
 	}
-
-	messageID, err := s.msgClient.Send(ctx, msg)
-	if err != nil {
-		return fmt.Errorf("sending FCM to token %s: %w", deviceToken, err)
-	}
-
-	log.Printf("FCM sent for order %s, message_id=%s", string(info.OrderID), messageID)
-	return nil
+	return entries, nil
 }
 
 // ---------------------------------------------------------------------------
