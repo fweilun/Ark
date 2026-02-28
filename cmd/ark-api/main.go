@@ -25,6 +25,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/relation"
 	"ark/internal/modules/user"
 )
 
@@ -79,6 +80,8 @@ func main() {
 	driverSvc := driver.NewService(driverStore)
 	userStore := user.NewStore(dbPool)
 	userSvc := user.NewService(userStore)
+	relationStore := relation.NewStore(dbPool)
+	relationSvc := relation.NewService(relationStore)
 	// Initialize Firebase auth client for token verification.
 	// If FIREBASE_CREDENTIALS_JSON is not set, auth middleware is disabled (dev mode).
 	var tokenVerifier middleware.TokenVerifier
@@ -106,6 +109,7 @@ func main() {
 		Calendar:     calendarSvc,
 		Driver:       driverSvc,
 		User:         userSvc,
+		Relation:     relationSvc,
 		Auth:         tokenVerifier,
 	})
 
