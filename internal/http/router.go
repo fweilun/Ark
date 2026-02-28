@@ -71,10 +71,6 @@ func NewRouter(
 	aiHandler := handlers.NewAIHandler(aiService)
 	api.POST("/api/ai/chat", aiHandler.Chat)
 
-	// location update
-	locationHandler := handlers.NewLocationHandler(locationService)
-	api.PUT("/api/drivers/:id/location", locationHandler.Update)
-
 	// notifications
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	api.POST("/api/notifications/register", notificationHandler.EnsureDevice)
