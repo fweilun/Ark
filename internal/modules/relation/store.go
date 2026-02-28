@@ -18,6 +18,7 @@ type RelationStore interface {
 	CancelRequest(ctx context.Context, from, to UserID) error
 	UpdateStatus(ctx context.Context, from, to UserID, status FriendshipStatus) error
 	GetFriendship(ctx context.Context, uid1, uid2 UserID) (*Friendship, error)
+	HasActiveRelation(ctx context.Context, uid1, uid2 UserID) (bool, error)
 	RemoveFriend(ctx context.Context, uid1, uid2 UserID) error
 	ListReceived(ctx context.Context, userID UserID) ([]FriendRequest, error)
 	ListSent(ctx context.Context, userID UserID) ([]FriendRequest, error)
@@ -114,6 +115,24 @@ func (s *Store) GetFriendship(ctx context.Context, uid1, uid2 UserID) (*Friendsh
 		f.Remark = &remark.String
 	}
 	return &f, nil
+}
+
+// HasActiveRelation reports whether a pending or accepted friendship row exists
+// between uid1 and uid2 in either direction.
+func (s *Store) HasActiveRelation(ctx context.Context, uid1, uid2 UserID) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM friendships
+			WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1))
+			  AND status IN ($3, $4)
+		)`,
+		string(uid1), string(uid2), StatusPending, StatusAccepted,
+	).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 // RemoveFriend deletes the accepted friendship record between uid1 and uid2.

@@ -15,6 +15,7 @@ import "github.com/gin-gonic/gin"
 //	POST   /api/relations/requests/:friend_id/reject
 //	GET    /api/relations/friends
 //	DELETE /api/relations/friends/:friend_id
+//	GET    /api/relations/friends/:friend_id/is
 func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 	rel := rg.Group("/api/relations")
 
@@ -33,4 +34,5 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 	// friends
 	rel.GET("/friends", h.ListFriends)
 	rel.DELETE("/friends/:friend_id", h.RemoveFriend)
+	rel.GET("/friends/:friend_id/is", h.IsFriend)
 }
