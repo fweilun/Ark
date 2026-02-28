@@ -17,11 +17,11 @@ type Pricing interface {
 }
 
 type Service struct {
-	store   *Store
+	store   OrderStore
 	pricing Pricing
 }
 
-func NewService(store *Store, pricing Pricing) *Service {
+func NewService(store OrderStore, pricing Pricing) *Service {
 	return &Service{store: store, pricing: pricing}
 }
 

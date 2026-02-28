@@ -1,4 +1,28 @@
 services:
+  postgres-test:
+    image: postgres:15
+    container_name: ark-postgres-test
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ark_test
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d/
+    tmpfs:
+      - /var/lib/postgresql/data  # Use tmpfs for faster tests and cleanup
+    command: >
+      postgres
+      -c log_statement=none
+      -c log_duration=off
+      -c log_min_messages=warning
+      -c fsync=off
+      -c synchronous_commit=off
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c shared_buffers=256MB
+
   ark-test:
     container_name: ark-test
     build:
@@ -7,9 +31,18 @@ services:
       target: build
     volumes:
       - .:/src
+    working_dir: /src
     environment:
       ARK_DB_DSN: "postgres://postgres:postgres@postgres:5432/ark?sslmode=disable"
+      TEST_DB_DSN: "postgres://postgres:postgres@postgres-test:5432/ark_test?sslmode=disable"
       ARK_REDIS_ADDR: "redis:6379"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "ark_test"
+      INTEGRATION_TEST: "true"
     depends_on:
       - postgres
+      - postgres-test
       - redis
