@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS friendships (
 CREATE UNIQUE INDEX IF NOT EXISTS uidx_friendships_pair
     ON friendships (user_id, friend_id);
 
+-- Unique index to prevent duplicate friendships for the same unordered pair.
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_friendships_unordered_pair
+    ON friendships (LEAST(user_id, friend_id), GREATEST(user_id, friend_id));
 -- Index to quickly find all requests for a given user (by status).
 CREATE INDEX IF NOT EXISTS idx_friendships_user_status
     ON friendships (user_id, status);
