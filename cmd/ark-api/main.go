@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
@@ -52,7 +53,10 @@ func main() {
 	matchingStore := matching.NewStore(redisClient)
 	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
 
-	locationStore := location.NewStore(dbPool, redisClient)
+	locationStore, err := location.NewStore(ctx, dbPool, redisClient)
+	if err != nil {
+		log.Fatal(err)
+	}
 	locationSvc := location.NewService(locationStore)
 
 	aiStore := aiusage.NewStore(dbPool)
@@ -107,6 +111,7 @@ func main() {
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
 
+	go locationSvc.RunRTDBPoller(ctx, 30*time.Second)
 	go matchingSvc.RunScheduler(ctx)
 	go orderSvc.RunTimeoutMonitor(ctx)
 	go orderSvc.RunScheduleIncentiveTicker(ctx)

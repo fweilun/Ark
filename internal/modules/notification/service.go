@@ -3,7 +3,9 @@ package notification
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -115,4 +117,56 @@ func (s *Service) NotifyUser(ctx context.Context, userID types.ID, message *Noti
 // DeleteOutdatedDevices delegates to the store to remove stale device records.
 func (s *Service) DeleteOutdatedDevices(ctx context.Context, before time.Time) error {
 	return s.store.DeleteOutdatedDevices(ctx, before)
+}
+
+// ---------------------------------------------------------------------------
+// Order push notifications
+// ---------------------------------------------------------------------------
+
+// OrderInfo contains the payload for a new-order push notification sent
+// directly to a driver's FCM device token.
+type OrderInfo struct {
+	OrderID      types.ID
+	PickupLat    float64
+	PickupLng    float64
+	DropoffLat   float64
+	DropoffLng   float64
+	EstimatedFee float64
+}
+
+// NotifyDriverNewOrder sends an FCM data message directly to a driver's device
+// token. It bypasses the per-user token lookup used by NotifyUser.
+func (s *Service) NotifyDriverNewOrder(ctx context.Context, deviceToken string, info OrderInfo) error {
+	if deviceToken == "" {
+		return fmt.Errorf("empty device token for order %s", string(info.OrderID))
+	}
+	if s.messaging == nil {
+		return nil // FCM not configured; skip silently
+	}
+
+	msg := &messaging.Message{
+		Token: deviceToken,
+		Data: map[string]string{
+			"type":          "new_order",
+			"order_id":      string(info.OrderID),
+			"pickup_lat":    strconv.FormatFloat(info.PickupLat, 'f', 6, 64),
+			"pickup_lng":    strconv.FormatFloat(info.PickupLng, 'f', 6, 64),
+			"dropoff_lat":   strconv.FormatFloat(info.DropoffLat, 'f', 6, 64),
+			"dropoff_lng":   strconv.FormatFloat(info.DropoffLng, 'f', 6, 64),
+			"estimated_fee": strconv.FormatFloat(info.EstimatedFee, 'f', 2, 64),
+		},
+		Notification: &messaging.Notification{
+			Title: "New ride request",
+			Body:  fmt.Sprintf("Pickup nearby — estimated fare $%.2f", info.EstimatedFee),
+		},
+		Android: &messaging.AndroidConfig{Priority: "high"},
+	}
+
+	messageID, err := s.messaging.Send(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("sending FCM to token %s: %w", deviceToken, err)
+	}
+
+	log.Printf("notification: FCM sent for order %s, message_id=%s", string(info.OrderID), messageID)
+	return nil
 }
