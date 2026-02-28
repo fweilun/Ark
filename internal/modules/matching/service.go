@@ -4,7 +4,9 @@ package matching
 import (
 	"context"
 	"errors"
+	"log"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"ark/internal/config"
@@ -94,7 +96,9 @@ func (s *Service) RunNotificationScheduler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = s.notifyMostUrgentOrder(ctx)
+			if err := s.notifyMostUrgentOrder(ctx); err != nil {
+				log.Printf("matching: notification scheduler error: %v", err)
+			}
 		}
 	}
 }
@@ -130,7 +134,9 @@ func (s *Service) notifyMostUrgentOrder(ctx context.Context) error {
 	// 4. Push notification to each selected driver.
 	msg := buildOrderNotificationMessage(urgentOrder)
 	for _, d := range selected {
-		_ = s.notification.NotifyUser(ctx, d.DriverID, msg)
+		if err := s.notification.NotifyUser(ctx, d.DriverID, msg); err != nil {
+			log.Printf("matching: failed to notify driver %s for order %s: %v", d.DriverID, urgentOrder.ID, err)
+		}
 	}
 
 	// 5. Mark the order as notified and set the next cooldown window.
@@ -168,10 +174,10 @@ func buildOrderNotificationMessage(o *order.Order) *notification.NotificationMes
 		Data: map[string]interface{}{
 			"type":        "order_notification",
 			"order_id":    string(o.ID),
-			"pickup_lat":  o.Pickup.Lat,
-			"pickup_lng":  o.Pickup.Lng,
-			"dropoff_lat": o.Dropoff.Lat,
-			"dropoff_lng": o.Dropoff.Lng,
+			"pickup_lat":  strconv.FormatFloat(o.Pickup.Lat, 'f', 6, 64),
+			"pickup_lng":  strconv.FormatFloat(o.Pickup.Lng, 'f', 6, 64),
+			"dropoff_lat": strconv.FormatFloat(o.Dropoff.Lat, 'f', 6, 64),
+			"dropoff_lng": strconv.FormatFloat(o.Dropoff.Lng, 'f', 6, 64),
 			"order_type":  o.OrderType,
 		},
 	}

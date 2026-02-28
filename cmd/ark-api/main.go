@@ -58,24 +58,13 @@ func main() {
 
 	matchingStore := matching.NewStore(redisClient, dbPool)
 
-	// Optionally initialise Firebase location service for driver geo-queries.
-	// If Firebase credentials are unavailable, notification scheduling is skipped.
-	var driverLocator matching.DriverLocator
-	if cfg.Notification.FirebaseCredentialsJSON != "" {
-		if firebaseLocSvc, locErr := location.NewFirebaseService(ctx); locErr != nil {
-			log.Printf("warning: could not initialise Firebase location service for matching: %v", locErr)
-		} else {
-			driverLocator = firebaseLocSvc
-		}
-	}
-
-	matchingSvc := matching.NewService(matchingStore, orderSvc, notificationSvc, driverLocator, cfg.Matching)
-
 	locationStore, err := location.NewStore(ctx, dbPool, redisClient)
 	if err != nil {
 		log.Fatal(err)
 	}
 	locationSvc := location.NewService(locationStore)
+
+	matchingSvc := matching.NewService(matchingStore, orderSvc, notificationSvc, locationSvc, cfg.Matching)
 
 	aiStore := aiusage.NewStore(dbPool)
 	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
