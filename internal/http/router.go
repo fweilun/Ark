@@ -16,6 +16,7 @@ import (
 	"ark/internal/modules/notification"
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
+	"ark/internal/modules/relation"
 	"ark/internal/modules/user"
 )
 
@@ -29,6 +30,7 @@ func NewRouter(
 	calendarService *calendar.Service,
 	driverService *driver.Service,
 	userService *user.Service,
+	relationService *relation.Service,
 	tokenVerifier middleware.TokenVerifier,
 ) *gin.Engine {
 	// r := gin.New()
@@ -97,6 +99,10 @@ func NewRouter(
 	driverHandler := driver.NewHandler(driverService)
 	r.PUT("/api/v1/driver/create", driverHandler.Create)
 	r.PUT("/api/v1/driver/status", driverHandler.UpdateStatus)
+
+	// relations (friend requests & friendships)
+	relationHandler := relation.NewHandler(relationService)
+	relation.RegisterRoutes(api, relationHandler)
 
 	return r
 }
