@@ -53,6 +53,7 @@ type TripPlanner struct {
 	SelectedUpgrade      string
 	RideFullyBooked      bool
 	CurrentState         string
+	CurrentItinerary     []aiusage.ScheduleItem // V4: last planned itinerary blocks
 }
 
 // NewTripPlanner creates a TripPlanner with initialized dependencies.
@@ -221,7 +222,18 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			return intent.Reply, nil
 		}
 
-		// 2. 情況 C：【核心修復】確認訂位
+		// 2. 情況 B.5：【隱含訂位安全網】
+		// LLM 有時在使用者回覆數字選擇時忘記把 needs_reservation 設為 true。
+		// 如果 restaurant_name 被更新為新值（表示使用者剛選了一間），直接結案。
+		if !intent.NeedsReservation && intent.RestaurantName != "" && intent.RestaurantName != p.TargetRestaurant {
+			p.TargetRestaurant = intent.RestaurantName
+			inlineMsg := p.buildRealBookingMessage(ctx, intent.RestaurantName, p.LastDestination)
+			p.HasDiningIntent = false
+			p.CurrentState = "completed"
+			return inlineMsg, nil
+		}
+
+		// 3. 情況 C：【核心修復】確認訂位
 		if intent.NeedsReservation {
 			rName := intent.RestaurantName
 			if rName == "" {
@@ -237,6 +249,34 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		// 3. 【防吞噬防線】情況 B / 其他所有情況
 		// 直接無條件回傳 LLM 思考出來的 Reply 字串！(例如它在問人數、推薦等)
 		return intent.Reply, nil
+	}
+
+	// ── V4: ITINERARY PLANNING ────────────────────────────────────────
+	// Intercept BEFORE all the booking / search / clarification guards.
+	// This MUST be placed early so that:
+	//   - TimePolicer cannot fire on a null iso_time (times are in the itinerary items).
+	//   - Origin guard cannot fire on a null start_location.
+	if intent.Intent == "itinerary_planning" {
+		// Persist the itinerary so the frontend / future turns can reference it.
+		if len(intent.Itinerary) > 0 {
+			p.CurrentItinerary = intent.Itinerary
+		}
+
+		// Phase 1: User hasn’t answered the charter vs single-leg question yet.
+		if intent.NeedsCharter == nil {
+			p.CurrentState = "itinerary_review"
+			// Return the AI’s nicely formatted reply verbatim — it already contains
+			// the itinerary listing and the mandatory closing question.
+			return intent.Reply, nil
+		}
+
+		// Phase 2: User answered.
+		if *intent.NeedsCharter {
+			p.CurrentState = "charter_booking"
+			return "🚗 沒問題！已為您啟動【全日包車】服務。司機將全程陪同，於每一站的預定時間等候您。請問需要指定什麼車型呢？", nil
+		}
+		p.CurrentState = "multi_stop_booking"
+		return "🚕 了解，那我們採用【單趟預約】。需要現在先幫您預約第一段出發的車輛嗎？", nil
 	}
 
 	// 3. Handle Search Intent (V2) - Intercept before Clarification check
