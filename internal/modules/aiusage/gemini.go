@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
@@ -62,14 +61,11 @@ func (g *geminiClient) ParseUserIntent(ctx context.Context, userMessage string, 
 	}
 
 	cleanJSON := cleanJSONString(sb.String())
-	log.Printf("[DEBUG RAW LLM JSON]: %s\n", cleanJSON)
 	var result IntentResult
 	if err := json.Unmarshal([]byte(cleanJSON), &result); err != nil {
-		return nil, fmt.Errorf("gemini: parse JSON response: %w. Raw: %s", err, cleanJSON)
+		return nil, fmt.Errorf("gemini: parse JSON response: %w", err)
 	}
 
-	intentBytes, _ := json.Marshal(result)
-	log.Printf("[DEBUG PARSED STRUCT]: %s\n", string(intentBytes))
 
 	return &result, nil
 }

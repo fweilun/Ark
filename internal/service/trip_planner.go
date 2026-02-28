@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"ark/internal/integration"
 	"ark/internal/maps"
 	"ark/internal/modules/aiusage"
+	"ark/internal/modules/places"
 )
 
 // DefaultTrafficBuffer is the extra time added to ensure on-time arrival.
@@ -41,7 +41,7 @@ func isTimePrecise(isoTime *string) bool {
 type TripPlanner struct {
 	aiProvider       aiusage.AIClient
 	routeService     *maps.RouteService
-	placesService    *maps.PlacesService
+	placesService    places.Service
 	loc              *time.Location
 	userName         string
 	userPhone        string
@@ -54,7 +54,7 @@ type TripPlanner struct {
 }
 
 // NewTripPlanner creates a TripPlanner with initialized dependencies.
-func NewTripPlanner(aiProvider aiusage.AIClient, routeService *maps.RouteService, placesService *maps.PlacesService, userName string, userPhone string) (*TripPlanner, error) {
+func NewTripPlanner(aiProvider aiusage.AIClient, routeService *maps.RouteService, placesService places.Service, userName string, userPhone string) (*TripPlanner, error) {
 	loc, err := time.LoadLocation("Asia/Taipei")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Asia/Taipei location: %w", err)
@@ -214,7 +214,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 				}
 				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
 			}
-			inlineMsg := integration.BookInline(rName, timeStr, p.userName, p.userPhone, intent.PassengerCount)
+			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
 
 			p.HasDiningIntent = false
 			p.CurrentState = ""
@@ -240,7 +240,11 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		// The AI must never reach the search branch with a vague / auto-filled time.
 		// If the iso_time looks like a midnight placeholder, demand a concrete hour.
 		if !isTimePrecise(intent.ISOTime) {
-			log.Printf("[TimePolicer] Search blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+			isoTimeStr := "<nil>"
+			if intent.ISOTime != nil {
+				isoTimeStr = *intent.ISOTime
+			}
+			log.Printf("[TimePolicer] Search blocked: iso_time is absent or midnight placeholder (%s)", isoTimeStr)
 			return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能為您進行後續規劃。請問您具體幾點出發或抵達？", nil
 		}
 
@@ -255,14 +259,14 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		}
 
 		// Search Along Route (V3)
-		var places []maps.Place
+		var placesList []places.Place
 		dest := "Typical Destination" // Fallback
 		if intent.Destination != nil && *intent.Destination != "" {
 			dest = *intent.Destination
 		}
 
 		// Build search options from AI-parsed keywords.
-		searchOpts := &maps.SearchOptions{}
+		searchOpts := &places.SearchOptions{}
 		if intent.SearchKeywords != nil && *intent.SearchKeywords != "" {
 			searchOpts.SearchKeywords = *intent.SearchKeywords
 		}
@@ -271,17 +275,17 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		}
 
 		if intent.IsDiningIntent || category == "restaurant" || category == "餐廳" {
-			places, err = p.placesService.SearchAtDestination(ctx, dest, category)
+			placesList, err = p.placesService.SearchAtDestination(ctx, dest, category)
 		} else {
 			// 1. Get Route Waypoints (Origin -> Mid -> Dest)
 			waypoints, err := p.routeService.GetRouteWaypoints(ctx, origin, dest)
 			if err != nil {
 				log.Printf("Route Waypoints Error: %v", err)
 				// Fallback to simple search near origin if route fails
-				places, err = p.placesService.SearchNearby(ctx, origin, category, searchOpts)
+				placesList, err = p.placesService.SearchNearby(ctx, origin, category, searchOpts)
 			} else {
 				// 2. Search at Waypoints
-				places, err = p.placesService.SearchAlongRoute(ctx, waypoints, category, searchOpts)
+				placesList, err = p.placesService.SearchAlongRoute(ctx, waypoints, category, searchOpts)
 			}
 		}
 
@@ -290,7 +294,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			return fmt.Sprintf("抱歉，搜尋 %s 時發生錯誤，請稍後再試。", category), nil
 		}
 
-		if len(places) == 0 {
+		if len(placesList) == 0 {
 			return fmt.Sprintf("抱歉，沿著去 %s 的路徑上找不到合適的 %s。", dest, category), nil
 		}
 
@@ -319,13 +323,13 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 
 		// Recommendation Struct for Sorting
 		type Recommendation struct {
-			Place  maps.Place
+			Place  places.Place
 			Detour time.Duration
 		}
 		var recommendations []Recommendation
 
 		// Calculate Detours & Filter
-		for _, place := range places {
+		for _, place := range placesList {
 			detour := time.Duration(0)
 			isDining := intent.IsDiningIntent || category == "restaurant" || category == "餐廳"
 			if !isDining {
@@ -480,7 +484,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 				}
 				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
 			}
-			inlineMsg := integration.BookInline(rName, timeStr, p.userName, p.userPhone, intent.PassengerCount)
+			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
 
 			// Mark dining flow as entirely resolved since it's booked
 			p.HasDiningIntent = false
@@ -536,7 +540,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 				}
 				timeStr = fmt.Sprintf("%s (%s) %s", t.Format("1/02"), weekdayMap[t.Weekday()], t.Format("15:04"))
 			}
-			inlineMsg := integration.BookInline(rName, timeStr, p.userName, p.userPhone, intent.PassengerCount)
+			inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
 
 			p.HasDiningIntent = false
 			reply = inlineMsg + "\n\n" + reply
@@ -572,7 +576,11 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 	// Only apply when a non-immediate time type is set (pure "immediate" has no iso_time anyway).
 	timeTypeIsSet := intent.TimeType != nil && *intent.TimeType != "immediate" && *intent.TimeType != ""
 	if timeTypeIsSet && !isTimePrecise(intent.ISOTime) {
-		log.Printf("[TimePolicer] Booking blocked: iso_time is absent or midnight placeholder (%v)", intent.ISOTime)
+		isoTimeStr := "<nil>"
+		if intent.ISOTime != nil {
+			isoTimeStr = *intent.ISOTime
+		}
+		log.Printf("[TimePolicer] Booking blocked: iso_time is absent or midnight placeholder (%s)", isoTimeStr)
 		return "系統需要您提供精確的時間（例如晚上 7 點、20:00）才能進行預約。請問您具體幾點出發或抵達？", nil
 	}
 
@@ -639,7 +647,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 			var warning string
 			if departureTime.Before(now) {
 				delay := now.Add(totalDuration).Sub(targetTime)
-				warning = fmt.Sprintf("⚠️ 提醣：建議出發時間已過（%s），若現在立刻出發，預計將延遲 %.0f 分鐘抵達。\n\n",
+				warning = fmt.Sprintf("⚠️ 提醒：建議出發時間已過（%s），若現在立刻出發，預計將延遲 %.0f 分鐘抵達。\n\n",
 					fmtWithWeekday(departureTime), delay.Minutes())
 				departureTime = now
 			}
@@ -834,7 +842,7 @@ func (p *TripPlanner) appendDiningPrompt(intent *aiusage.IntentResult, baseMsg s
 			rName = dest
 		}
 
-		inlineMsg := integration.BookInline(rName, timeStr, p.userName, p.userPhone, intent.PassengerCount)
+		inlineMsg := fmt.Sprintf("已為您記錄餐廳需求！\n餐廳：%s\n時間：%s\n人數：%d 位", rName, timeStr, intent.PassengerCount)
 		// Booking confirmation takes visual priority, but both belong in response.
 		return inlineMsg + "\n\n" + baseMsg
 	}

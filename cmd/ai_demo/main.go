@@ -11,6 +11,7 @@ import (
 
 	"ark/internal/maps"
 	"ark/internal/modules/aiusage"
+	"ark/internal/modules/places"
 	"ark/internal/service"
 )
 
@@ -39,7 +40,7 @@ func main() {
 		log.Fatalf("Failed to create route service: %v", err)
 	}
 
-	placesService, err := maps.NewPlacesService(mapsApiKey)
+	placesService, err := places.NewService(mapsApiKey)
 	if err != nil {
 		log.Fatalf("Failed to create places service: %v", err)
 	}

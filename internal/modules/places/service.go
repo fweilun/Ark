@@ -1,4 +1,4 @@
-package maps
+package places
 
 import (
 	"context"
@@ -8,41 +8,28 @@ import (
 	"googlemaps.github.io/maps"
 )
 
-// Place represents a simplified location result.
-type Place struct {
-	Name             string
-	Address          string
-	Rating           float32
-	PlaceID          string
-	UserRatingsTotal int
+// Service interface for places operations.
+type Service interface {
+	SearchNearby(ctx context.Context, location string, query string, opts *SearchOptions) ([]Place, error)
+	SearchAlongRoute(ctx context.Context, waypoints []string, query string, opts *SearchOptions) ([]Place, error)
+	SearchAtDestination(ctx context.Context, destinationStr string, query string) ([]Place, error)
 }
 
-// SearchOptions holds dynamic search refinement parameters from the AI.
-type SearchOptions struct {
-	// SearchKeywords are positive refinements appended to the API query (e.g. "鮮花").
-	SearchKeywords string
-	// ExcludeKeywords are terms that disqualify any result containing them (e.g. ["永生花", "乾燥花"]).
-	ExcludeKeywords []string
-}
-
-// PlacesService handles interactions with Google Places API.
-type PlacesService struct {
+type placesService struct {
 	client *maps.Client
 }
 
-// NewPlacesService creates a new PlacesService with the given API Key.
-func NewPlacesService(apiKey string) (*PlacesService, error) {
+// NewService creates a new places service.
+func NewService(apiKey string) (Service, error) {
 	client, err := maps.NewClient(maps.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create maps client: %w", err)
 	}
-	return &PlacesService{client: client}, nil
+	return &placesService{client: client}, nil
 }
 
 // SearchNearby searches for places matching the query near the given location.
-// opts can be nil for a basic search. SearchKeywords are appended to the query;
-// ExcludeKeywords filter out results by name.
-func (s *PlacesService) SearchNearby(ctx context.Context, location string, query string, opts *SearchOptions) ([]Place, error) {
+func (s *placesService) SearchNearby(ctx context.Context, location string, query string, opts *SearchOptions) ([]Place, error) {
 	fullQuery := query
 
 	if opts != nil && opts.SearchKeywords != "" {
@@ -125,7 +112,7 @@ func containsIgnoreCase(s, substr string) bool {
 }
 
 // SearchAlongRoute searches for places near multiple waypoints along a route.
-func (s *PlacesService) SearchAlongRoute(ctx context.Context, waypoints []string, query string, opts *SearchOptions) ([]Place, error) {
+func (s *placesService) SearchAlongRoute(ctx context.Context, waypoints []string, query string, opts *SearchOptions) ([]Place, error) {
 	uniquePlaces := make(map[string]Place)
 	var allPlaces []Place
 
@@ -151,9 +138,7 @@ func (s *PlacesService) SearchAlongRoute(ctx context.Context, waypoints []string
 }
 
 // SearchAtDestination searches for reservable restaurants near a destination string.
-// It filters for high-quality restaurants (rating ≥ 4.0) and excludes stalls/hawkers
-// that typically do not accept advance reservations.
-func (s *PlacesService) SearchAtDestination(ctx context.Context, destinationStr string, query string) ([]Place, error) {
+func (s *placesService) SearchAtDestination(ctx context.Context, destinationStr string, query string) ([]Place, error) {
 	fullQuery := query
 	if destinationStr != "" {
 		fullQuery = fmt.Sprintf("%s near %s", query, destinationStr)
