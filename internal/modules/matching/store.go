@@ -50,6 +50,7 @@ func (s *Store) GetMostUrgentNotifiable(ctx context.Context) (*order.Order, *Ord
         LEFT JOIN order_notifications onotif ON onotif.order_id = o.id
         WHERE o.status IN ('scheduled', 'waiting')
           AND (onotif.order_id IS NULL OR onotif.next_notifiable_at <= NOW())
+          AND (o.scheduled_at IS NULL OR o.scheduled_at > NOW())
         ORDER BY COALESCE(o.scheduled_at, o.created_at) ASC
         LIMIT 1`)
 
