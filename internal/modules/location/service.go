@@ -82,6 +82,23 @@ func (s *Service) GetNearbyDrivers(ctx context.Context, lat, lng, radiusKm float
 	return result, nil
 }
 
+// GetAllDrivers returns all currently online drivers from Firebase RTDB.
+func (s *Service) GetAllDrivers(ctx context.Context) ([]DriverLocation, error) {
+	entries, err := s.store.FetchActiveUsersFromRTDB(ctx, "driver")
+	if err != nil {
+		return nil, err
+	}
+	result := make([]DriverLocation, len(entries))
+	for i, e := range entries {
+		result[i] = DriverLocation{
+			DriverID: e.ID,
+			Lat:      e.Pos.Lat,
+			Lng:      e.Pos.Lng,
+		}
+	}
+	return result, nil
+}
+
 // GetNearbyPassengers returns passengers looking for a ride within radiusKm of
 // (lat, lng), sorted by distance ascending.
 func (s *Service) GetNearbyPassengers(ctx context.Context, lat, lng, radiusKm float64) ([]PassengerLocation, error) {

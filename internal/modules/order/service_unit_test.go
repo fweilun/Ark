@@ -178,6 +178,9 @@ func (m *mockOrderStore) ExpireOverdueScheduled(_ context.Context) error {
 	return nil
 }
 
+func (m *mockOrderStore) ListUrgentPendingOrders(_ context.Context) ([]*Order, error) {
+	return nil, nil
+}
 // ---------------------------------------------------------------------------
 // Mock pricing
 // ---------------------------------------------------------------------------
