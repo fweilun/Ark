@@ -52,7 +52,8 @@ func (s *Store) GetMostUrgentNotifiable(ctx context.Context) (*order.Order, *Ord
           AND (onotif.order_id IS NULL OR onotif.next_notifiable_at <= NOW())
           AND (o.scheduled_at IS NULL OR o.scheduled_at > NOW())
         ORDER BY COALESCE(o.scheduled_at, o.created_at) ASC
-        LIMIT 1`)
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED`)
 
 	var (
 		o                order.Order
