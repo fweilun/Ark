@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"time"
 
@@ -119,7 +119,7 @@ func (s *Service) notifyMostUrgentOrder(ctx context.Context) error {
 
 	// 2. Get all online drivers.
 	if s.location == nil {
-		return nil
+		return errors.New("matching: location service not configured")
 	}
 	drivers, err := s.location.GetAllDrivers(ctx)
 	if err != nil {
@@ -132,12 +132,21 @@ func (s *Service) notifyMostUrgentOrder(ctx context.Context) error {
 	// 3. Randomly select up to maxNotifyDrivers drivers.
 	selected := pickRandom(drivers, maxNotifyDrivers)
 
-	// 4. Push notification to each selected driver.
+	// 4. Push notification to each selected driver; track whether at least one succeeded.
+	if s.notification == nil {
+		return errors.New("matching: notification service not configured")
+	}
 	msg := buildOrderNotificationMessage(urgentOrder)
+	anySucceeded := false
 	for _, d := range selected {
 		if err := s.notification.NotifyUser(ctx, d.DriverID, msg); err != nil {
 			log.Printf("matching: failed to notify driver %s for order %s: %v", d.DriverID, urgentOrder.ID, err)
+		} else {
+			anySucceeded = true
 		}
+	}
+	if !anySucceeded {
+		return nil
 	}
 
 	// 5. Mark the order as notified and set the next cooldown window.
@@ -145,13 +154,7 @@ func (s *Service) notifyMostUrgentOrder(ctx context.Context) error {
 	if existingNotif != nil {
 		notifyCount = existingNotif.NotifyCount + 1
 	}
-	now := time.Now()
-	return s.store.UpsertOrderNotification(ctx, &OrderNotification{
-		OrderID:          urgentOrder.ID,
-		NotifyCount:      notifyCount,
-		LastNotifiedAt:   now,
-		NextNotifiableAt: now.Add(notificationCooldown),
-	})
+	return s.store.UpsertOrderNotification(ctx, urgentOrder.ID, notifyCount, notificationCooldown)
 }
 
 // pickRandom returns up to n randomly selected elements from drivers.
@@ -166,8 +169,8 @@ func pickRandom(drivers []location.DriverLocation, n int) []location.DriverLocat
 	copy(result, drivers[:n])
 
 	for i := n; i < len(drivers); i++ {
-		// rand.Intn(i+1) returns a value in [0, i].
-		j := rand.Intn(i + 1)
+		// rand.IntN(i+1) returns a value in [0, i].
+		j := rand.IntN(i + 1)
 		if j < n {
 			result[j] = drivers[i]
 		}

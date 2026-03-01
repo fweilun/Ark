@@ -100,18 +100,19 @@ func (s *Store) GetMostUrgentNotifiable(ctx context.Context) (*order.Order, *Ord
 }
 
 // UpsertOrderNotification inserts or updates the notification tracking record for an order.
-func (s *Store) UpsertOrderNotification(ctx context.Context, on *OrderNotification) error {
+// Timestamps are computed by the database using NOW() to avoid clock skew between app instances.
+func (s *Store) UpsertOrderNotification(ctx context.Context, orderID types.ID, notifyCount int, cooldown time.Duration) error {
+	cooldownMs := cooldown.Milliseconds()
 	_, err := s.db.Exec(ctx, `
         INSERT INTO order_notifications (order_id, notify_count, last_notified_at, next_notifiable_at)
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, NOW(), NOW() + ($3 * INTERVAL '1 millisecond'))
         ON CONFLICT (order_id) DO UPDATE
             SET notify_count       = EXCLUDED.notify_count,
-                last_notified_at   = EXCLUDED.last_notified_at,
-                next_notifiable_at = EXCLUDED.next_notifiable_at`,
-		string(on.OrderID),
-		on.NotifyCount,
-		on.LastNotifiedAt,
-		on.NextNotifiableAt,
+                last_notified_at   = NOW(),
+                next_notifiable_at = NOW() + ($3 * INTERVAL '1 millisecond')`,
+		string(orderID),
+		notifyCount,
+		cooldownMs,
 	)
 	return err
 }
