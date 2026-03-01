@@ -29,6 +29,12 @@ type OrderStore interface {
 	// Background operations
 	BumpIncentiveBonusForApproaching(ctx context.Context, bump int64) error
 	ExpireOverdueScheduled(ctx context.Context) error
+
+	// ListUrgentPendingOrders returns all scheduled and waiting orders that have not
+	// yet passed their effective scheduled time, ordered by urgency (earliest first).
+	// Orders with a NULL scheduled_at (e.g., instant orders in 'waiting') are included
+	// and ordered using COALESCE(scheduled_at, created_at).
+	ListUrgentPendingOrders(ctx context.Context) ([]*Order, error)
 }
 
 // Ensure Store implements OrderStore interface

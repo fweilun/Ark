@@ -51,8 +51,13 @@ func main() {
 	orderStore := order.NewStore(dbPool)
 	orderSvc := order.NewService(orderStore, pricingSvc)
 
-	matchingStore := matching.NewStore(redisClient)
-	matchingSvc := matching.NewService(matchingStore, orderSvc, cfg.Matching)
+	notificationStore := notification.NewStore(dbPool)
+	notificationSvc, err := notification.NewService(notificationStore, []byte(cfg.Notification.FirebaseCredentialsJSON))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	matchingStore := matching.NewStore(redisClient, dbPool)
 
 	locationStore, err := location.NewStore(ctx, dbPool, redisClient)
 	if err != nil {
@@ -60,18 +65,14 @@ func main() {
 	}
 	locationSvc := location.NewService(locationStore)
 
+	matchingSvc := matching.NewService(matchingStore, orderSvc, notificationSvc, locationSvc, cfg.Matching)
+
 	aiStore := aiusage.NewStore(dbPool)
 	aiSvc, err := aiusage.NewService(aiStore, cfg.AI.GeminiKey)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer aiSvc.Close()
-
-	notificationStore := notification.NewStore(dbPool)
-	notificationSvc, err := notification.NewService(notificationStore, []byte(cfg.Notification.FirebaseCredentialsJSON))
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	calendarStore := calendar.NewStore(dbPool)
 	calendarSvc := calendar.NewService(calendarStore, orderSvc)
@@ -117,6 +118,7 @@ func main() {
 
 	go locationSvc.RunRTDBPoller(ctx, 30*time.Second)
 	go matchingSvc.RunScheduler(ctx)
+	go matchingSvc.RunNotificationScheduler(ctx)
 	go orderSvc.RunTimeoutMonitor(ctx)
 	go orderSvc.RunScheduleIncentiveTicker(ctx)
 	go orderSvc.RunScheduleExpireTicker(ctx)

@@ -27,3 +27,12 @@ type MatchResult struct {
     DriverID    types.ID
     WaitTimeSec int
 }
+
+// OrderNotification tracks how many times a scheduled/waiting order has been
+// broadcast to drivers and when the next broadcast window opens (cooldown).
+type OrderNotification struct {
+    OrderID          types.ID
+    NotifyCount      int
+    LastNotifiedAt   time.Time
+    NextNotifiableAt time.Time
+}
