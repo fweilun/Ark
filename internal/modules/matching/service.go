@@ -88,7 +88,8 @@ func (s *Service) RunScheduler(ctx context.Context) {
 // broadcasts it to a random selection of online drivers via push notification.
 // The cooldown between notifications for the same order is notificationCooldown.
 func (s *Service) RunNotificationScheduler(ctx context.Context) {
-	ticker := time.NewTicker(notificationCooldown)
+	tick := time.Duration(s.cfg.TickSeconds) * time.Second
+	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 
 	for {
