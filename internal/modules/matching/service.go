@@ -159,10 +159,18 @@ func pickRandom(drivers []location.DriverLocation, n int) []location.DriverLocat
 	if len(drivers) <= n {
 		return drivers
 	}
-	perm := rand.Perm(len(drivers))
+
+	// Reservoir sampling: O(len(drivers)) time, O(n) extra memory,
+	// avoids allocating a full permutation of all indices.
 	result := make([]location.DriverLocation, n)
-	for i := 0; i < n; i++ {
-		result[i] = drivers[perm[i]]
+	copy(result, drivers[:n])
+
+	for i := n; i < len(drivers); i++ {
+		// rand.Intn(i+1) returns a value in [0, i].
+		j := rand.Intn(i + 1)
+		if j < n {
+			result[j] = drivers[i]
+		}
 	}
 	return result
 }
