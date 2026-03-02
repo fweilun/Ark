@@ -141,7 +141,6 @@ func setupTestSchema(ctx context.Context, db *pgxpool.Pool) error {
 	}
 
 	if !exists {
-		// Create basic schema - in real setup, this would run migrations
 		schemaSQL := `
 			CREATE TABLE IF NOT EXISTS calendar_events (
 				id          TEXT PRIMARY KEY,
@@ -154,11 +153,21 @@ func setupTestSchema(ctx context.Context, db *pgxpool.Pool) error {
 			CREATE TABLE IF NOT EXISTS calendar_schedules (
 				uid         TEXT NOT NULL,
 				event_id    TEXT NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
-				tied_order  TEXT,
 				PRIMARY KEY (uid, event_id)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_calendar_schedules_uid ON calendar_schedules (uid);
+
+			CREATE TABLE IF NOT EXISTS calendar_order_events (
+				id          TEXT PRIMARY KEY,
+				event_id    TEXT NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+				order_id    TEXT NOT NULL,
+				uid         TEXT NOT NULL,
+				created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+			);
+
+			CREATE INDEX IF NOT EXISTS idx_calendar_order_events_event ON calendar_order_events (event_id);
+			CREATE INDEX IF NOT EXISTS idx_calendar_order_events_uid ON calendar_order_events (uid);
 		`
 		_, err = db.Exec(ctx, schemaSQL)
 		return err
@@ -169,6 +178,7 @@ func setupTestSchema(ctx context.Context, db *pgxpool.Pool) error {
 
 // setupTestTables creates tables in the test schema
 func setupTestTables(ctx context.Context, db *pgxpool.Pool, schema string) error {
+	safeName := strings.ReplaceAll(schema, ".", "_")
 	schemaSQL := fmt.Sprintf(`
 		CREATE TABLE %s.calendar_events (
 			id          TEXT PRIMARY KEY,
@@ -181,12 +191,22 @@ func setupTestTables(ctx context.Context, db *pgxpool.Pool, schema string) error
 		CREATE TABLE %s.calendar_schedules (
 			uid         TEXT NOT NULL,
 			event_id    TEXT NOT NULL REFERENCES %s.calendar_events(id) ON DELETE CASCADE,
-			tied_order  TEXT,
 			PRIMARY KEY (uid, event_id)
 		);
 
 		CREATE INDEX idx_calendar_schedules_uid_%s ON %s.calendar_schedules (uid);
-	`, schema, schema, schema, strings.ReplaceAll(schema, ".", "_"), schema)
+
+		CREATE TABLE %s.calendar_order_events (
+			id          TEXT PRIMARY KEY,
+			event_id    TEXT NOT NULL REFERENCES %s.calendar_events(id) ON DELETE CASCADE,
+			order_id    TEXT NOT NULL,
+			uid         TEXT NOT NULL,
+			created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+		);
+
+		CREATE INDEX idx_calendar_order_events_event_%s ON %s.calendar_order_events (event_id);
+		CREATE INDEX idx_calendar_order_events_uid_%s ON %s.calendar_order_events (uid);
+	`, schema, schema, schema, safeName, schema, schema, schema, safeName, schema, safeName, schema)
 
 	_, err := db.Exec(ctx, schemaSQL)
 	return err
@@ -367,12 +387,10 @@ func TestStore_CreateSchedule_Integration(t *testing.T) {
 		t.Fatalf("Failed to create event: %v", err)
 	}
 
-	// Create schedule
-	orderID := types.ID("test-order-id")
+	// Create schedule (no tied_order in new design)
 	schedule := &Schedule{
-		UID:       "user-123",
-		EventID:   event.ID,
-		TiedOrder: &orderID,
+		UID:     "user-123",
+		EventID: event.ID,
 	}
 
 	err = store.CreateSchedule(ctx, schedule)
@@ -392,15 +410,9 @@ func TestStore_CreateSchedule_Integration(t *testing.T) {
 	if retrievedSchedule.EventID != schedule.EventID {
 		t.Errorf("Expected EventID %s, got %s", schedule.EventID, retrievedSchedule.EventID)
 	}
-	if retrievedSchedule.TiedOrder == nil {
-		t.Fatal("Expected TiedOrder to be set")
-	}
-	if *retrievedSchedule.TiedOrder != orderID {
-		t.Errorf("Expected TiedOrder %s, got %s", orderID, *retrievedSchedule.TiedOrder)
-	}
 }
 
-func TestStore_CreateScheduleWithoutTiedOrder_Integration(t *testing.T) {
+func TestStore_CreateOrderEvent_Integration(t *testing.T) {
 	db := setupTestDB(t)
 	if db == nil {
 		return
@@ -418,36 +430,39 @@ func TestStore_CreateScheduleWithoutTiedOrder_Integration(t *testing.T) {
 		Title:       "Test Event",
 		Description: "Test Description",
 	}
-
-	err := store.CreateEvent(ctx, event)
-	if err != nil {
+	if err := store.CreateEvent(ctx, event); err != nil {
 		t.Fatalf("Failed to create event: %v", err)
 	}
 
-	// Create schedule without tied order
-	schedule := &Schedule{
-		UID:       "user-123",
+	oe := &OrderEvent{
+		ID:        "oe-1",
 		EventID:   event.ID,
-		TiedOrder: nil,
+		OrderID:   "order-abc",
+		UID:       "user-123",
+		CreatedAt: time.Now().UTC().Truncate(time.Second),
 	}
 
-	err = store.CreateSchedule(ctx, schedule)
+	if err := store.CreateOrderEvent(ctx, oe); err != nil {
+		t.Fatalf("Failed to create order-event: %v", err)
+	}
+
+	// Verify
+	retrieved, err := store.GetOrderEvent(ctx, oe.ID)
 	if err != nil {
-		t.Fatalf("Failed to create schedule: %v", err)
+		t.Fatalf("Failed to retrieve order-event: %v", err)
 	}
-
-	// Verify schedule was created
-	retrievedSchedule, err := store.GetSchedule(ctx, schedule.UID, schedule.EventID)
-	if err != nil {
-		t.Fatalf("Failed to retrieve schedule: %v", err)
+	if retrieved.OrderID != oe.OrderID {
+		t.Errorf("Expected OrderID %s, got %s", oe.OrderID, retrieved.OrderID)
 	}
-
-	if retrievedSchedule.TiedOrder != nil {
-		t.Errorf("Expected TiedOrder to be nil, got %v", *retrievedSchedule.TiedOrder)
+	if retrieved.EventID != oe.EventID {
+		t.Errorf("Expected EventID %s, got %s", oe.EventID, retrieved.EventID)
+	}
+	if retrieved.UID != oe.UID {
+		t.Errorf("Expected UID %s, got %s", oe.UID, retrieved.UID)
 	}
 }
 
-func TestStore_UpdateScheduleTiedOrder_Integration(t *testing.T) {
+func TestStore_MultipleOrderEventsPerEvent_Integration(t *testing.T) {
 	db := setupTestDB(t)
 	if db == nil {
 		return
@@ -457,66 +472,125 @@ func TestStore_UpdateScheduleTiedOrder_Integration(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	// Create an event first (required for foreign key)
 	event := &Event{
-		ID:          "test-event-id",
-		From:        time.Now().Truncate(time.Second),
-		To:          time.Now().Add(time.Hour).Truncate(time.Second),
-		Title:       "Test Event",
-		Description: "Test Description",
+		ID:    "test-event-id",
+		From:  time.Now().Truncate(time.Second),
+		To:    time.Now().Add(time.Hour).Truncate(time.Second),
+		Title: "Test Event",
 	}
-
-	err := store.CreateEvent(ctx, event)
-	if err != nil {
+	if err := store.CreateEvent(ctx, event); err != nil {
 		t.Fatalf("Failed to create event: %v", err)
 	}
 
-	// Create schedule without tied order
-	schedule := &Schedule{
-		UID:       "user-123",
+	uid := types.ID("user-123")
+	// Multiple orders for the same event (e.g. pickup and dropoff rides)
+	oe1 := &OrderEvent{ID: "oe-1", EventID: event.ID, OrderID: "order-1", UID: uid, CreatedAt: time.Now().UTC()}
+	oe2 := &OrderEvent{ID: "oe-2", EventID: event.ID, OrderID: "order-2", UID: uid, CreatedAt: time.Now().UTC()}
+
+	if err := store.CreateOrderEvent(ctx, oe1); err != nil {
+		t.Fatalf("Failed to create first order-event: %v", err)
+	}
+	if err := store.CreateOrderEvent(ctx, oe2); err != nil {
+		t.Fatalf("Failed to create second order-event: %v", err)
+	}
+
+	orderEvents, err := store.ListOrderEventsByUser(ctx, uid)
+	if err != nil {
+		t.Fatalf("Failed to list order-events: %v", err)
+	}
+	if len(orderEvents) != 2 {
+		t.Fatalf("Expected 2 order-events, got %d", len(orderEvents))
+	}
+}
+
+func TestStore_DeleteOrderEvent_Integration(t *testing.T) {
+	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
+	defer cleanupTestDB(t, db)
+
+	store := NewStore(db)
+	ctx := context.Background()
+
+	event := &Event{
+		ID:    "test-event-id",
+		From:  time.Now().Truncate(time.Second),
+		To:    time.Now().Add(time.Hour).Truncate(time.Second),
+		Title: "Test Event",
+	}
+	if err := store.CreateEvent(ctx, event); err != nil {
+		t.Fatalf("Failed to create event: %v", err)
+	}
+
+	oe := &OrderEvent{
+		ID:        "oe-1",
 		EventID:   event.ID,
-		TiedOrder: nil,
+		OrderID:   "order-abc",
+		UID:       "user-123",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := store.CreateOrderEvent(ctx, oe); err != nil {
+		t.Fatalf("Failed to create order-event: %v", err)
 	}
 
-	err = store.CreateSchedule(ctx, schedule)
+	if err := store.DeleteOrderEvent(ctx, oe.ID); err != nil {
+		t.Fatalf("Failed to delete order-event: %v", err)
+	}
+
+	_, err := store.GetOrderEvent(ctx, oe.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Expected ErrNotFound after deletion, got %v", err)
+	}
+}
+
+func TestStore_ListEventsByUser_Integration(t *testing.T) {
+	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
+	defer cleanupTestDB(t, db)
+
+	store := NewStore(db)
+	ctx := context.Background()
+
+	// Create events
+	events := []*Event{
+		{ID: "event-1", From: time.Now().UTC().Truncate(time.Second), To: time.Now().UTC().Add(time.Hour).Truncate(time.Second), Title: "Event 1"},
+		{ID: "event-2", From: time.Now().UTC().Truncate(time.Second), To: time.Now().UTC().Add(time.Hour).Truncate(time.Second), Title: "Event 2"},
+		{ID: "event-3", From: time.Now().UTC().Truncate(time.Second), To: time.Now().UTC().Add(time.Hour).Truncate(time.Second), Title: "Event 3"},
+	}
+	for _, e := range events {
+		if err := store.CreateEvent(ctx, e); err != nil {
+			t.Fatalf("Failed to create event %s: %v", e.ID, err)
+		}
+	}
+
+	uid1 := types.ID("user-1")
+	uid2 := types.ID("user-2")
+
+	// uid1 attends event-1 and event-2; uid2 attends event-3
+	_ = store.CreateSchedule(ctx, &Schedule{UID: uid1, EventID: "event-1"})
+	_ = store.CreateSchedule(ctx, &Schedule{UID: uid1, EventID: "event-2"})
+	_ = store.CreateSchedule(ctx, &Schedule{UID: uid2, EventID: "event-3"})
+
+	userEvents, err := store.ListEventsByUser(ctx, uid1)
 	if err != nil {
-		t.Fatalf("Failed to create schedule: %v", err)
+		t.Fatalf("Failed to list events for user: %v", err)
+	}
+	if len(userEvents) != 2 {
+		t.Fatalf("Expected 2 events for user1, got %d", len(userEvents))
 	}
 
-	// Update with tied order
-	orderID := types.ID("new-order-id")
-	err = store.UpdateScheduleTiedOrder(ctx, schedule.UID, schedule.EventID, &orderID)
-	if err != nil {
-		t.Fatalf("Failed to update schedule tied order: %v", err)
+	ids := make(map[types.ID]bool)
+	for _, e := range userEvents {
+		ids[e.ID] = true
 	}
-
-	// Verify update
-	retrievedSchedule, err := store.GetSchedule(ctx, schedule.UID, schedule.EventID)
-	if err != nil {
-		t.Fatalf("Failed to retrieve schedule: %v", err)
+	if !ids["event-1"] || !ids["event-2"] {
+		t.Error("Expected event-1 and event-2 for user1")
 	}
-
-	if retrievedSchedule.TiedOrder == nil {
-		t.Fatal("Expected TiedOrder to be set")
-	}
-	if *retrievedSchedule.TiedOrder != orderID {
-		t.Errorf("Expected TiedOrder %s, got %s", orderID, *retrievedSchedule.TiedOrder)
-	}
-
-	// Update to clear tied order
-	err = store.UpdateScheduleTiedOrder(ctx, schedule.UID, schedule.EventID, nil)
-	if err != nil {
-		t.Fatalf("Failed to clear schedule tied order: %v", err)
-	}
-
-	// Verify cleared
-	retrievedSchedule, err = store.GetSchedule(ctx, schedule.UID, schedule.EventID)
-	if err != nil {
-		t.Fatalf("Failed to retrieve schedule: %v", err)
-	}
-
-	if retrievedSchedule.TiedOrder != nil {
-		t.Errorf("Expected TiedOrder to be nil, got %v", *retrievedSchedule.TiedOrder)
+	if ids["event-3"] {
+		t.Error("event-3 should not appear for user1")
 	}
 }
 
@@ -531,27 +605,9 @@ func TestStore_ListSchedulesByUser_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	// Create events
-	event1 := &Event{
-		ID:          "event-1",
-		From:        time.Now().Truncate(time.Second),
-		To:          time.Now().Add(time.Hour).Truncate(time.Second),
-		Title:       "Event 1",
-		Description: "Description 1",
-	}
-	event2 := &Event{
-		ID:          "event-2",
-		From:        time.Now().Add(2 * time.Hour).Truncate(time.Second),
-		To:          time.Now().Add(3 * time.Hour).Truncate(time.Second),
-		Title:       "Event 2",
-		Description: "Description 2",
-	}
-	event3 := &Event{
-		ID:          "event-3",
-		From:        time.Now().Add(4 * time.Hour).Truncate(time.Second),
-		To:          time.Now().Add(5 * time.Hour).Truncate(time.Second),
-		Title:       "Event 3",
-		Description: "Description 3",
-	}
+	event1 := &Event{ID: "event-1", From: time.Now().Truncate(time.Second), To: time.Now().Add(time.Hour).Truncate(time.Second), Title: "Event 1"}
+	event2 := &Event{ID: "event-2", From: time.Now().Add(2 * time.Hour).Truncate(time.Second), To: time.Now().Add(3 * time.Hour).Truncate(time.Second), Title: "Event 2"}
+	event3 := &Event{ID: "event-3", From: time.Now().Add(4 * time.Hour).Truncate(time.Second), To: time.Now().Add(5 * time.Hour).Truncate(time.Second), Title: "Event 3"}
 
 	for _, event := range []*Event{event1, event2, event3} {
 		err := store.CreateEvent(ctx, event)
@@ -562,13 +618,11 @@ func TestStore_ListSchedulesByUser_Integration(t *testing.T) {
 
 	uid1 := types.ID("user-1")
 	uid2 := types.ID("user-2")
-	orderID := types.ID("order-1")
 
-	// Create schedules
 	schedules := []*Schedule{
-		{UID: uid1, EventID: event1.ID, TiedOrder: &orderID},
-		{UID: uid1, EventID: event2.ID, TiedOrder: nil},
-		{UID: uid2, EventID: event3.ID, TiedOrder: nil},
+		{UID: uid1, EventID: event1.ID},
+		{UID: uid1, EventID: event2.ID},
+		{UID: uid2, EventID: event3.ID},
 	}
 
 	for _, schedule := range schedules {
@@ -605,31 +659,6 @@ func TestStore_ListSchedulesByUser_Integration(t *testing.T) {
 	}
 }
 
-// Unit tests for edge cases and error conditions
-func TestStore_GetEvent_NotFound(t *testing.T) {
-
-}
-
-func TestStore_UpdateEvent_NotFound(t *testing.T) {
-	// Test with mock to demonstrate error case
-	t.Skip("Unit test with mock - demonstrates UpdateEvent not found case")
-}
-
-func TestStore_DeleteEvent_NotFound(t *testing.T) {
-	// Test with mock to demonstrate error case
-	t.Skip("Unit test with mock - demonstrates DeleteEvent not found case")
-}
-
-func TestStore_GetSchedule_NotFound(t *testing.T) {
-	// Test with mock to demonstrate error case
-	t.Skip("Unit test with mock - demonstrates GetSchedule not found case")
-}
-
-func TestStore_UpdateScheduleTiedOrder_NotFound(t *testing.T) {
-	// Test with mock to demonstrate error case
-	t.Skip("Unit test with mock - demonstrates UpdateScheduleTiedOrder not found case")
-}
-
 func TestStore_EventCascadeDelete_Integration(t *testing.T) {
 	db := setupTestDB(t)
 	if db == nil {
@@ -655,18 +684,18 @@ func TestStore_EventCascadeDelete_Integration(t *testing.T) {
 	}
 
 	// Create a schedule referencing the event
-	schedule := &Schedule{
-		UID:       "user-123",
-		EventID:   event.ID,
-		TiedOrder: nil,
-	}
-
-	err = store.CreateSchedule(ctx, schedule)
-	if err != nil {
+	schedule := &Schedule{UID: "user-123", EventID: event.ID}
+	if err := store.CreateSchedule(ctx, schedule); err != nil {
 		t.Fatalf("Failed to create schedule: %v", err)
 	}
 
-	// Delete the event - should cascade delete the schedule
+	// Create an order-event referencing the event
+	oe := &OrderEvent{ID: "oe-1", EventID: event.ID, OrderID: "order-abc", UID: "user-123", CreatedAt: time.Now().UTC()}
+	if err := store.CreateOrderEvent(ctx, oe); err != nil {
+		t.Fatalf("Failed to create order-event: %v", err)
+	}
+
+	// Delete the event - should cascade delete schedule and order-event
 	err = store.DeleteEvent(ctx, event.ID)
 	if err != nil {
 		t.Fatalf("Failed to delete event: %v", err)
@@ -676,6 +705,12 @@ func TestStore_EventCascadeDelete_Integration(t *testing.T) {
 	_, err = store.GetSchedule(ctx, schedule.UID, schedule.EventID)
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("Expected schedule to be cascade deleted, but got error: %v", err)
+	}
+
+	// Verify order-event was also deleted due to foreign key cascade
+	_, err = store.GetOrderEvent(ctx, oe.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Expected order-event to be cascade deleted, but got error: %v", err)
 	}
 }
 
@@ -689,7 +724,6 @@ func TestStore_DuplicateSchedule_Integration(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	// Create an event
 	event := &Event{
 		ID:          "test-event-id",
 		From:        time.Now().Truncate(time.Second),
@@ -703,12 +737,7 @@ func TestStore_DuplicateSchedule_Integration(t *testing.T) {
 		t.Fatalf("Failed to create event: %v", err)
 	}
 
-	// Create first schedule
-	schedule := &Schedule{
-		UID:       "user-123",
-		EventID:   event.ID,
-		TiedOrder: nil,
-	}
+	schedule := &Schedule{UID: "user-123", EventID: event.ID}
 
 	err = store.CreateSchedule(ctx, schedule)
 	if err != nil {
@@ -720,8 +749,26 @@ func TestStore_DuplicateSchedule_Integration(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error when creating duplicate schedule, got nil")
 	}
-	// The exact error depends on the database implementation
-	// In PostgreSQL, this would be a unique constraint violation
+}
+
+// Unit tests for edge cases and error conditions
+func TestStore_GetEvent_NotFound(t *testing.T) {
+
+}
+
+func TestStore_UpdateEvent_NotFound(t *testing.T) {
+	// Test with mock to demonstrate error case
+	t.Skip("Unit test with mock - demonstrates UpdateEvent not found case")
+}
+
+func TestStore_DeleteEvent_NotFound(t *testing.T) {
+	// Test with mock to demonstrate error case
+	t.Skip("Unit test with mock - demonstrates DeleteEvent not found case")
+}
+
+func TestStore_GetSchedule_NotFound(t *testing.T) {
+	// Test with mock to demonstrate error case
+	t.Skip("Unit test with mock - demonstrates GetSchedule not found case")
 }
 
 func TestStore_TimePrecision_Integration(t *testing.T) {

@@ -84,9 +84,10 @@ func NewRouter(
 	api.POST("/api/calendar/events", calendarHandler.CreateEvent)
 	api.PUT("/api/calendar/events/:id", calendarHandler.EditEvent)
 	api.DELETE("/api/calendar/events/:id", calendarHandler.DeleteEvent)
-	api.POST("/api/calendar/schedules", calendarHandler.CreateAndTieOrder)
-	api.DELETE("/api/calendar/schedules/:event_id/order", calendarHandler.UntieOrder)
-	api.GET("/api/calendar/schedules", calendarHandler.ListSchedules)
+	api.GET("/api/calendar/events", calendarHandler.ListAllEvents)
+	api.POST("/api/calendar/order-events", calendarHandler.CreateOrderEvent)
+	api.DELETE("/api/calendar/order-events/:id", calendarHandler.CancelOrderEvent)
+	api.GET("/api/calendar/order-events", calendarHandler.ListAllOrders)
 
 	// users
 	userHandler := handlers.NewUserHandler(userService)

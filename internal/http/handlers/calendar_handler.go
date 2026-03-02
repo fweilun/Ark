@@ -13,7 +13,7 @@ import (
 	"ark/internal/types"
 )
 
-// CalendarHandler exposes calendar event and schedule endpoints.
+// CalendarHandler exposes calendar event and order-event endpoints.
 type CalendarHandler struct {
 	svc *calendar.Service
 }
@@ -39,7 +39,7 @@ type editEventReq struct {
 	Description string `json:"description"`
 }
 
-type createAndTieOrderReq struct {
+type createOrderEventReq struct {
 	EventID    string  `json:"event_id"`
 	PickupLat  float64 `json:"pickup_lat"`
 	PickupLng  float64 `json:"pickup_lng"`
@@ -49,7 +49,13 @@ type createAndTieOrderReq struct {
 }
 
 // CreateEvent handles POST /api/calendar/events.
+// The authenticated user is automatically registered as an attendee.
 func (h *CalendarHandler) CreateEvent(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req createEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
@@ -70,6 +76,7 @@ func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 		return
 	}
 	id, err := h.svc.CreateEvent(c.Request.Context(), calendar.CreateEventCommand{
+		UID:         types.ID(userID),
 		From:        from,
 		To:          to,
 		Title:       req.Title,
@@ -135,15 +142,16 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CreateAndTieOrder handles POST /api/calendar/schedules — creates a ride order and ties it to an existing event.
-// The authenticated user_id (from context) is used as both the schedule UID and the passenger_id.
-func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
+// CreateOrderEvent handles POST /api/calendar/order-events.
+// Creates a ride order and links it to an existing calendar event.
+// The authenticated user is used as both the schedule owner and the passenger.
+func (h *CalendarHandler) CreateOrderEvent(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req createAndTieOrderReq
+	var req createOrderEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "invalid json")
 		return
@@ -156,7 +164,7 @@ func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid event_id")
 		return
 	}
-	sc, err := h.svc.CreateAndTieOrder(c.Request.Context(), calendar.CreateAndTieOrderCommand{
+	oe, err := h.svc.CreateOrderEvent(c.Request.Context(), calendar.CreateOrderEventCommand{
 		UID:         types.ID(userID),
 		EventID:     types.ID(req.EventID),
 		PassengerID: types.ID(userID),
@@ -169,18 +177,19 @@ func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusCreated, map[string]any{
-		"uid":        sc.UID,
-		"event_id":   sc.EventID,
-		"tied_order": sc.TiedOrder,
+		"id":       oe.ID,
+		"event_id": oe.EventID,
+		"order_id": oe.OrderID,
+		"uid":      oe.UID,
 	})
 }
 
-// UntieOrder handles DELETE /api/calendar/schedules/:event_id/order.
-// The authenticated user_id from context is used as the schedule UID.
-func (h *CalendarHandler) UntieOrder(c *gin.Context) {
-	eventID := c.Param("event_id")
-	if eventID == "" || !isValidID(eventID) {
-		writeError(c, http.StatusBadRequest, "invalid event id")
+// CancelOrderEvent handles DELETE /api/calendar/order-events/:id.
+// Cancels the linked ride order and removes the order-event link.
+func (h *CalendarHandler) CancelOrderEvent(c *gin.Context) {
+	orderEventID := c.Param("id")
+	if orderEventID == "" || !isValidID(orderEventID) {
+		writeError(c, http.StatusBadRequest, "invalid order event id")
 		return
 	}
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
@@ -188,9 +197,9 @@ func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	if err := h.svc.UntieOrder(c.Request.Context(), calendar.UntieOrderCommand{
-		UID:     types.ID(userID),
-		EventID: types.ID(eventID),
+	if err := h.svc.CancelOrderEvent(c.Request.Context(), calendar.CancelOrderEventCommand{
+		UID:          types.ID(userID),
+		OrderEventID: types.ID(orderEventID),
 	}); err != nil {
 		writeCalendarError(c, err)
 		return
@@ -198,20 +207,36 @@ func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// ListSchedules handles GET /api/calendar/schedules.
-// The authenticated user_id from context is used to filter schedules.
-func (h *CalendarHandler) ListSchedules(c *gin.Context) {
+// ListAllEvents handles GET /api/calendar/events.
+// Returns all calendar events for the authenticated user.
+func (h *CalendarHandler) ListAllEvents(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		writeError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	schedules, err := h.svc.ListSchedulesByUser(c.Request.Context(), types.ID(userID))
+	events, err := h.svc.ListAllEvents(c.Request.Context(), types.ID(userID))
 	if err != nil {
 		writeCalendarError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"schedules": schedules})
+	writeJSON(c, http.StatusOK, map[string]any{"events": events})
+}
+
+// ListAllOrders handles GET /api/calendar/order-events.
+// Returns all order-event links for the authenticated user.
+func (h *CalendarHandler) ListAllOrders(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	orderEvents, err := h.svc.ListAllOrders(c.Request.Context(), types.ID(userID))
+	if err != nil {
+		writeCalendarError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, map[string]any{"order_events": orderEvents})
 }
 
 func writeCalendarError(c *gin.Context, err error) {
@@ -220,6 +245,8 @@ func writeCalendarError(c *gin.Context, err error) {
 		writeError(c, http.StatusBadRequest, err.Error())
 	case calendar.ErrNotFound, order.ErrNotFound:
 		writeError(c, http.StatusNotFound, err.Error())
+	case calendar.ErrForbidden:
+		writeError(c, http.StatusForbidden, err.Error())
 	case order.ErrInvalidState, order.ErrConflict:
 		writeError(c, http.StatusConflict, err.Error())
 	default:

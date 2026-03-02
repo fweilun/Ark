@@ -3,7 +3,6 @@ package calendar
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -12,7 +11,7 @@ import (
 	"ark/internal/types"
 )
 
-// Store handles persistence for calendar events and schedules.
+// Store handles persistence for calendar events, schedules, and order-events.
 type Store struct {
 	db *pgxpool.Pool
 }
@@ -79,17 +78,36 @@ func (s *Store) DeleteEvent(ctx context.Context, id types.ID) error {
 	return nil
 }
 
+// ListEventsByUser returns all calendar events for which the user has a schedule entry.
+func (s *Store) ListEventsByUser(ctx context.Context, uid types.ID) ([]*Event, error) {
+	rows, err := s.db.Query(ctx, `
+        SELECT e.id, e."from", e."to", e.title, e.description
+        FROM calendar_events e
+        INNER JOIN calendar_schedules sc ON sc.event_id = e.id
+        WHERE sc.uid = $1`, string(uid),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ID, &e.From, &e.To, &e.Title, &e.Description); err != nil {
+			return nil, err
+		}
+		events = append(events, &e)
+	}
+	return events, rows.Err()
+}
+
 // CreateSchedule inserts a new schedule entry linking a user to an event.
 func (s *Store) CreateSchedule(ctx context.Context, sc *Schedule) error {
-	var orderID *string
-	if sc.TiedOrder != nil {
-		v := string(*sc.TiedOrder)
-		orderID = &v
-	}
 	_, err := s.db.Exec(ctx, `
-        INSERT INTO calendar_schedules (uid, event_id, tied_order)
-        VALUES ($1, $2, $3)`,
-		string(sc.UID), string(sc.EventID), orderID,
+        INSERT INTO calendar_schedules (uid, event_id)
+        VALUES ($1, $2)`,
+		string(sc.UID), string(sc.EventID),
 	)
 	return err
 }
@@ -97,53 +115,26 @@ func (s *Store) CreateSchedule(ctx context.Context, sc *Schedule) error {
 // GetSchedule retrieves a schedule entry by user ID and event ID.
 func (s *Store) GetSchedule(ctx context.Context, uid, eventID types.ID) (*Schedule, error) {
 	row := s.db.QueryRow(ctx, `
-        SELECT uid, event_id, tied_order
+        SELECT uid, event_id
         FROM calendar_schedules
         WHERE uid = $1 AND event_id = $2`,
 		string(uid), string(eventID),
 	)
 	var sc Schedule
-	var tiedOrder sql.NullString
-	err := row.Scan(&sc.UID, &sc.EventID, &tiedOrder)
+	err := row.Scan(&sc.UID, &sc.EventID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	if tiedOrder.Valid {
-		id := types.ID(tiedOrder.String)
-		sc.TiedOrder = &id
-	}
 	return &sc, nil
-}
-
-// UpdateScheduleTiedOrder sets or clears the tied_order on a schedule entry.
-func (s *Store) UpdateScheduleTiedOrder(ctx context.Context, uid, eventID types.ID, orderID *types.ID) error {
-	var o *string
-	if orderID != nil {
-		v := string(*orderID)
-		o = &v
-	}
-	tag, err := s.db.Exec(ctx, `
-        UPDATE calendar_schedules
-        SET tied_order = $1
-        WHERE uid = $2 AND event_id = $3`,
-		o, string(uid), string(eventID),
-	)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
 }
 
 // ListSchedulesByUser returns all schedule entries for a given user.
 func (s *Store) ListSchedulesByUser(ctx context.Context, uid types.ID) ([]*Schedule, error) {
 	rows, err := s.db.Query(ctx, `
-        SELECT uid, event_id, tied_order
+        SELECT uid, event_id
         FROM calendar_schedules
         WHERE uid = $1`, string(uid),
 	)
@@ -155,18 +146,74 @@ func (s *Store) ListSchedulesByUser(ctx context.Context, uid types.ID) ([]*Sched
 	var schedules []*Schedule
 	for rows.Next() {
 		var sc Schedule
-		var tiedOrder sql.NullString
-		if err := rows.Scan(&sc.UID, &sc.EventID, &tiedOrder); err != nil {
+		if err := rows.Scan(&sc.UID, &sc.EventID); err != nil {
 			return nil, err
-		}
-		if tiedOrder.Valid {
-			id := types.ID(tiedOrder.String)
-			sc.TiedOrder = &id
 		}
 		schedules = append(schedules, &sc)
 	}
-	if err := rows.Err(); err != nil {
+	return schedules, rows.Err()
+}
+
+// CreateOrderEvent inserts a new order-event link.
+func (s *Store) CreateOrderEvent(ctx context.Context, oe *OrderEvent) error {
+	_, err := s.db.Exec(ctx, `
+        INSERT INTO calendar_order_events (id, event_id, order_id, uid, created_at)
+        VALUES ($1, $2, $3, $4, $5)`,
+		string(oe.ID), string(oe.EventID), string(oe.OrderID), string(oe.UID), oe.CreatedAt,
+	)
+	return err
+}
+
+// GetOrderEvent retrieves an order-event link by ID.
+func (s *Store) GetOrderEvent(ctx context.Context, id types.ID) (*OrderEvent, error) {
+	row := s.db.QueryRow(ctx, `
+        SELECT id, event_id, order_id, uid, created_at
+        FROM calendar_order_events
+        WHERE id = $1`, string(id),
+	)
+	var oe OrderEvent
+	err := row.Scan(&oe.ID, &oe.EventID, &oe.OrderID, &oe.UID, &oe.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
 		return nil, err
 	}
-	return schedules, nil
+	return &oe, nil
+}
+
+// DeleteOrderEvent removes an order-event link by ID.
+func (s *Store) DeleteOrderEvent(ctx context.Context, id types.ID) error {
+	tag, err := s.db.Exec(ctx, `DELETE FROM calendar_order_events WHERE id = $1`, string(id))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListOrderEventsByUser returns all order-event links for a given user.
+func (s *Store) ListOrderEventsByUser(ctx context.Context, uid types.ID) ([]*OrderEvent, error) {
+	rows, err := s.db.Query(ctx, `
+        SELECT id, event_id, order_id, uid, created_at
+        FROM calendar_order_events
+        WHERE uid = $1
+        ORDER BY created_at DESC`, string(uid),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orderEvents []*OrderEvent
+	for rows.Next() {
+		var oe OrderEvent
+		if err := rows.Scan(&oe.ID, &oe.EventID, &oe.OrderID, &oe.UID, &oe.CreatedAt); err != nil {
+			return nil, err
+		}
+		orderEvents = append(orderEvents, &oe)
+	}
+	return orderEvents, rows.Err()
 }

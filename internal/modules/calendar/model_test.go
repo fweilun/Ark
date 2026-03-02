@@ -87,52 +87,54 @@ func TestEvent_FieldValidation(t *testing.T) {
 func TestSchedule_FieldValidation(t *testing.T) {
 	uid := types.ID("user-123")
 	eventID := types.ID("event-456")
+
+	schedule := Schedule{
+		UID:     uid,
+		EventID: eventID,
+	}
+
+	if schedule.UID == "" {
+		t.Error("Schedule UID should not be empty")
+	}
+	if schedule.EventID == "" {
+		t.Error("Schedule EventID should not be empty")
+	}
+}
+
+func TestOrderEvent_FieldValidation(t *testing.T) {
+	uid := types.ID("user-123")
+	eventID := types.ID("event-456")
 	orderID := types.ID("order-789")
 
 	testCases := []struct {
-		name        string
-		schedule    Schedule
-		description string
+		name       string
+		orderEvent OrderEvent
+		wantValid  bool
 	}{
 		{
-			name: "schedule with tied order",
-			schedule: Schedule{
-				UID:       uid,
+			name: "valid order event",
+			orderEvent: OrderEvent{
+				ID:        "oe-1",
 				EventID:   eventID,
-				TiedOrder: &orderID,
+				OrderID:   orderID,
+				UID:       uid,
+				CreatedAt: time.Now(),
 			},
-			description: "Schedule linked to an order",
+			wantValid: true,
 		},
 		{
-			name: "schedule without tied order",
-			schedule: Schedule{
-				UID:       uid,
-				EventID:   eventID,
-				TiedOrder: nil,
-			},
-			description: "Schedule not linked to any order",
+			name:       "zero value order event",
+			orderEvent: OrderEvent{},
+			wantValid:  false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Test required fields
-			if tc.schedule.UID == "" {
-				t.Error("Schedule UID should not be empty")
+			isValid := tc.orderEvent.ID != "" && tc.orderEvent.EventID != "" && tc.orderEvent.OrderID != "" && tc.orderEvent.UID != ""
+			if isValid != tc.wantValid {
+				t.Errorf("Expected valid=%v, got valid=%v", tc.wantValid, isValid)
 			}
-			if tc.schedule.EventID == "" {
-				t.Error("Schedule EventID should not be empty")
-			}
-
-			// Test optional tied order
-			if tc.name == "schedule with tied order" && tc.schedule.TiedOrder == nil {
-				t.Error("Expected TiedOrder to be set")
-			}
-			if tc.name == "schedule without tied order" && tc.schedule.TiedOrder != nil {
-				t.Error("Expected TiedOrder to be nil")
-			}
-
-			t.Logf("Test case '%s': %s", tc.name, tc.description)
 		})
 	}
 }
@@ -223,52 +225,7 @@ func TestEvent_TimeRelationships(t *testing.T) {
 	}
 }
 
-func TestSchedule_TiedOrderPointer(t *testing.T) {
-	uid := types.ID("user-123")
-	eventID := types.ID("event-456")
-
-	// Test nil tied order
-	schedule1 := Schedule{
-		UID:       uid,
-		EventID:   eventID,
-		TiedOrder: nil,
-	}
-
-	if schedule1.TiedOrder != nil {
-		t.Error("Expected TiedOrder to be nil")
-	}
-
-	// Test with tied order
-	orderID := types.ID("order-789")
-	schedule2 := Schedule{
-		UID:       uid,
-		EventID:   eventID,
-		TiedOrder: &orderID,
-	}
-
-	if schedule2.TiedOrder == nil {
-		t.Fatal("Expected TiedOrder to be set")
-	}
-	if *schedule2.TiedOrder != orderID {
-		t.Errorf("Expected TiedOrder %s, got %s", orderID, *schedule2.TiedOrder)
-	}
-
-	// Test pointer independence
-	newOrderID := types.ID("new-order-123")
-	schedule2.TiedOrder = &newOrderID
-
-	if *schedule2.TiedOrder != newOrderID {
-		t.Errorf("Expected TiedOrder to be updated to %s, got %s", newOrderID, *schedule2.TiedOrder)
-	}
-
-	// Original orderID should not be affected
-	if orderID != "order-789" {
-		t.Error("Original orderID should not have changed")
-	}
-}
-
 func TestEvent_IDUniqueness(t *testing.T) {
-	// Test that different events can have different IDs
 	event1 := Event{
 		ID:          "event-1",
 		From:        time.Now(),
@@ -288,41 +245,19 @@ func TestEvent_IDUniqueness(t *testing.T) {
 	if event1.ID == event2.ID {
 		t.Error("Different events should have different IDs")
 	}
-
-	// Test that events can have the same content but different IDs
-	event3 := Event{
-		ID:          "event-3",
-		From:        event1.From,
-		To:          event1.To,
-		Title:       event1.Title,
-		Description: event1.Description,
-	}
-
-	if event1.ID == event3.ID {
-		t.Error("Events with same content should still have different IDs")
-	}
-
-	// But content should be the same
-	if event1.Title != event3.Title {
-		t.Error("Events with copied content should have same title")
-	}
-	if event1.Description != event3.Description {
-		t.Error("Events with copied content should have same description")
-	}
 }
 
 func TestSchedule_CompositeKey(t *testing.T) {
-	// Test that schedules are uniquely identified by UID + EventID combination
 	uid1 := types.ID("user-1")
 	uid2 := types.ID("user-2")
 	eventID1 := types.ID("event-1")
 	eventID2 := types.ID("event-2")
 
 	schedules := []Schedule{
-		{UID: uid1, EventID: eventID1, TiedOrder: nil},
-		{UID: uid1, EventID: eventID2, TiedOrder: nil},
-		{UID: uid2, EventID: eventID1, TiedOrder: nil},
-		{UID: uid2, EventID: eventID2, TiedOrder: nil},
+		{UID: uid1, EventID: eventID1},
+		{UID: uid1, EventID: eventID2},
+		{UID: uid2, EventID: eventID1},
+		{UID: uid2, EventID: eventID2},
 	}
 
 	// Each schedule should have a unique UID+EventID combination
@@ -340,8 +275,33 @@ func TestSchedule_CompositeKey(t *testing.T) {
 	}
 }
 
+func TestOrderEvent_MultiplePerEvent(t *testing.T) {
+	// Multiple order-events can exist for the same event
+	eventID := types.ID("event-1")
+	uid := types.ID("user-1")
+
+	orderEvents := []OrderEvent{
+		{ID: "oe-1", EventID: eventID, OrderID: "order-pickup", UID: uid},
+		{ID: "oe-2", EventID: eventID, OrderID: "order-dropoff", UID: uid},
+	}
+
+	ids := make(map[types.ID]bool)
+	for _, oe := range orderEvents {
+		if ids[oe.ID] {
+			t.Errorf("Duplicate order-event ID: %s", oe.ID)
+		}
+		ids[oe.ID] = true
+		if oe.EventID != eventID {
+			t.Errorf("Expected EventID %s, got %s", eventID, oe.EventID)
+		}
+	}
+
+	if len(ids) != 2 {
+		t.Errorf("Expected 2 unique order-event IDs, got %d", len(ids))
+	}
+}
+
 func TestEvent_ZeroValues(t *testing.T) {
-	// Test behavior with zero values
 	var event Event
 
 	if event.ID != "" {
@@ -366,7 +326,6 @@ func TestEvent_ZeroValues(t *testing.T) {
 }
 
 func TestSchedule_ZeroValues(t *testing.T) {
-	// Test behavior with zero values
 	var schedule Schedule
 
 	if schedule.UID != "" {
@@ -376,14 +335,29 @@ func TestSchedule_ZeroValues(t *testing.T) {
 	if schedule.EventID != "" {
 		t.Errorf("Zero-value Schedule EventID should be empty string, got %s", schedule.EventID)
 	}
+}
 
-	if schedule.TiedOrder != nil {
-		t.Error("Zero-value Schedule TiedOrder should be nil")
+func TestOrderEvent_ZeroValues(t *testing.T) {
+	var oe OrderEvent
+
+	if oe.ID != "" {
+		t.Errorf("Zero-value OrderEvent ID should be empty string, got %s", oe.ID)
+	}
+	if oe.EventID != "" {
+		t.Errorf("Zero-value OrderEvent EventID should be empty string, got %s", oe.EventID)
+	}
+	if oe.OrderID != "" {
+		t.Errorf("Zero-value OrderEvent OrderID should be empty string, got %s", oe.OrderID)
+	}
+	if oe.UID != "" {
+		t.Errorf("Zero-value OrderEvent UID should be empty string, got %s", oe.UID)
+	}
+	if !oe.CreatedAt.IsZero() {
+		t.Error("Zero-value OrderEvent CreatedAt should be zero time")
 	}
 }
 
 func TestEvent_TimezoneHandling(t *testing.T) {
-	// Test events in different timezones
 	utc := time.UTC
 	est := time.FixedZone("EST", -5*60*60) // UTC-5
 	pst := time.FixedZone("PST", -8*60*60) // UTC-8
@@ -412,12 +386,10 @@ func TestEvent_TimezoneHandling(t *testing.T) {
 				Description: "Testing timezone handling",
 			}
 
-			// Verify timezone is preserved
 			if event.From.Location() != tc.timezone {
 				t.Errorf("Expected timezone %s, got %s", tc.timezone, event.From.Location())
 			}
 
-			// Verify duration is consistent across timezones
 			duration := event.To.Sub(event.From)
 			if duration != time.Hour {
 				t.Errorf("Expected duration 1 hour, got %v", duration)
@@ -447,37 +419,29 @@ func BenchmarkEvent_Creation(b *testing.B) {
 func BenchmarkSchedule_Creation(b *testing.B) {
 	uid := types.ID("benchmark-user")
 	eventID := types.ID("benchmark-event")
-	orderID := types.ID("benchmark-order")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = Schedule{
-			UID:       uid,
-			EventID:   eventID,
-			TiedOrder: &orderID,
+			UID:     uid,
+			EventID: eventID,
 		}
 	}
 }
 
-func BenchmarkSchedule_PointerOperations(b *testing.B) {
+func BenchmarkOrderEvent_Creation(b *testing.B) {
 	uid := types.ID("benchmark-user")
 	eventID := types.ID("benchmark-event")
 	orderID := types.ID("benchmark-order")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		schedule := Schedule{
+		_ = OrderEvent{
+			ID:        "oe-bench",
 			UID:       uid,
 			EventID:   eventID,
-			TiedOrder: &orderID,
+			OrderID:   orderID,
+			CreatedAt: time.Now(),
 		}
-
-		// Simulate common pointer operations
-		if schedule.TiedOrder != nil {
-			_ = *schedule.TiedOrder
-		}
-
-		schedule.TiedOrder = nil
-		schedule.TiedOrder = &orderID
 	}
 }

@@ -32,7 +32,7 @@ func BenchmarkService_CreateEvent(b *testing.B) {
 	}
 }
 
-func BenchmarkService_CreateAndTieOrder(b *testing.B) {
+func BenchmarkService_CreateOrderEvent(b *testing.B) {
 	store := newMockStore()
 	orderSvc := &mockOrderService{
 		nextOrderID: "bench-order-id",
@@ -40,7 +40,7 @@ func BenchmarkService_CreateAndTieOrder(b *testing.B) {
 	svc := NewService(store, orderSvc)
 	ctx := context.Background()
 
-	cmd := CreateAndTieOrderCommand{
+	cmd := CreateOrderEventCommand{
 		UID:         "bench-user",
 		EventID:     "bench-event",
 		PassengerID: "bench-passenger",
@@ -52,17 +52,17 @@ func BenchmarkService_CreateAndTieOrder(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Reset state for each iteration
-		store.schedules = make(map[string]*Schedule)
+		store.orderEvents = make(map[types.ID]*OrderEvent)
 		orderSvc.createdOrders = nil
 
-		_, err := svc.CreateAndTieOrder(ctx, cmd)
+		_, err := svc.CreateOrderEvent(ctx, cmd)
 		if err != nil {
-			b.Fatalf("CreateAndTieOrder failed: %v", err)
+			b.Fatalf("CreateOrderEvent failed: %v", err)
 		}
 	}
 }
 
-func BenchmarkService_ListSchedulesByUser(b *testing.B) {
+func BenchmarkService_ListAllOrders(b *testing.B) {
 	store := newMockStore()
 	orderSvc := &mockOrderService{}
 	svc := NewService(store, orderSvc)
@@ -70,26 +70,25 @@ func BenchmarkService_ListSchedulesByUser(b *testing.B) {
 
 	uid := types.ID("bench-user")
 
-	// Pre-populate with many schedules
+	// Pre-populate with many order-events
 	for i := 0; i < 1000; i++ {
-		eventID := types.ID(fmt.Sprintf("event-%d", i))
-		schedule := &Schedule{
-			UID:       uid,
-			EventID:   eventID,
-			TiedOrder: nil,
+		id := types.ID(fmt.Sprintf("oe-%d", i))
+		store.orderEvents[id] = &OrderEvent{
+			ID:      id,
+			UID:     uid,
+			EventID: types.ID(fmt.Sprintf("event-%d", i%100)),
+			OrderID: types.ID(fmt.Sprintf("order-%d", i)),
 		}
-		key := store.scheduleKey(uid, eventID)
-		store.schedules[key] = schedule
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		schedules, err := svc.ListSchedulesByUser(ctx, uid)
+		orderEvents, err := svc.ListAllOrders(ctx, uid)
 		if err != nil {
-			b.Fatalf("ListSchedulesByUser failed: %v", err)
+			b.Fatalf("ListAllOrders failed: %v", err)
 		}
-		if len(schedules) != 1000 {
-			b.Fatalf("Expected 1000 schedules, got %d", len(schedules))
+		if len(orderEvents) != 1000 {
+			b.Fatalf("Expected 1000 order-events, got %d", len(orderEvents))
 		}
 	}
 }
@@ -159,7 +158,7 @@ func BenchmarkService_ConcurrentCreateEvent(b *testing.B) {
 	})
 }
 
-func BenchmarkService_LargeScheduleList(b *testing.B) {
+func BenchmarkService_LargeOrderEventList(b *testing.B) {
 	store := newMockStore()
 	orderSvc := &mockOrderService{}
 	svc := NewService(store, orderSvc)
@@ -171,28 +170,27 @@ func BenchmarkService_LargeScheduleList(b *testing.B) {
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("size_%d", size), func(b *testing.B) {
 			// Reset and populate
-			store.schedules = make(map[string]*Schedule)
+			store.orderEvents = make(map[types.ID]*OrderEvent)
 			uid := types.ID("bench-user")
 
 			for i := 0; i < size; i++ {
-				eventID := types.ID(fmt.Sprintf("event-%d", i))
-				schedule := &Schedule{
-					UID:       uid,
-					EventID:   eventID,
-					TiedOrder: nil,
+				id := types.ID(fmt.Sprintf("oe-%d", i))
+				store.orderEvents[id] = &OrderEvent{
+					ID:      id,
+					UID:     uid,
+					EventID: types.ID(fmt.Sprintf("event-%d", i%100)),
+					OrderID: types.ID(fmt.Sprintf("order-%d", i)),
 				}
-				key := store.scheduleKey(uid, eventID)
-				store.schedules[key] = schedule
 			}
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				schedules, err := svc.ListSchedulesByUser(ctx, uid)
+				orderEvents, err := svc.ListAllOrders(ctx, uid)
 				if err != nil {
-					b.Fatalf("ListSchedulesByUser failed: %v", err)
+					b.Fatalf("ListAllOrders failed: %v", err)
 				}
-				if len(schedules) != size {
-					b.Fatalf("Expected %d schedules, got %d", size, len(schedules))
+				if len(orderEvents) != size {
+					b.Fatalf("Expected %d order-events, got %d", size, len(orderEvents))
 				}
 			}
 		})

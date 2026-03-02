@@ -1,4 +1,4 @@
-// README: Calendar service — creates/edits/deletes events and manages schedule-order ties.
+// README: Calendar service — creates/edits/deletes events and manages order-event links.
 package calendar
 
 import (
@@ -18,10 +18,14 @@ type StoreInterface interface {
 	GetEvent(ctx context.Context, id types.ID) (*Event, error)
 	UpdateEvent(ctx context.Context, e *Event) error
 	DeleteEvent(ctx context.Context, id types.ID) error
+	ListEventsByUser(ctx context.Context, uid types.ID) ([]*Event, error)
 	CreateSchedule(ctx context.Context, sc *Schedule) error
 	GetSchedule(ctx context.Context, uid, eventID types.ID) (*Schedule, error)
-	UpdateScheduleTiedOrder(ctx context.Context, uid, eventID types.ID, orderID *types.ID) error
 	ListSchedulesByUser(ctx context.Context, uid types.ID) ([]*Schedule, error)
+	CreateOrderEvent(ctx context.Context, oe *OrderEvent) error
+	GetOrderEvent(ctx context.Context, id types.ID) (*OrderEvent, error)
+	DeleteOrderEvent(ctx context.Context, id types.ID) error
+	ListOrderEventsByUser(ctx context.Context, uid types.ID) ([]*OrderEvent, error)
 }
 
 // OrderService defines the order operations needed by the calendar service.
@@ -44,10 +48,12 @@ func NewService(store StoreInterface, orderSvc OrderService) *Service {
 var (
 	ErrNotFound   = errors.New("calendar: not found")
 	ErrBadRequest = errors.New("calendar: bad request")
+	ErrForbidden  = errors.New("calendar: forbidden")
 )
 
 // CreateEventCommand holds the fields required to create a new calendar event.
 type CreateEventCommand struct {
+	UID         types.ID
 	From        time.Time
 	To          time.Time
 	Title       string
@@ -63,24 +69,23 @@ type EditEventCommand struct {
 	Description string
 }
 
-// CreateAndTieOrderCommand creates a ride order and ties it to an existing calendar event
-// via a Schedule entry for the given user. The order fields mirror order.CreateCommand.
-type CreateAndTieOrderCommand struct {
-	UID         types.ID // user who owns the schedule entry
-	EventID     types.ID // existing event to tie the order to
+// CreateOrderEventCommand creates a ride order and links it to an existing calendar event.
+type CreateOrderEventCommand struct {
+	UID         types.ID // user who owns the order-event link
+	EventID     types.ID // existing event to link the order to
 	PassengerID types.ID
 	Pickup      types.Point
 	Dropoff     types.Point
 	RideType    string
 }
 
-// UntieOrderCommand removes the order link from a user's schedule entry.
-type UntieOrderCommand struct {
-	UID     types.ID
-	EventID types.ID
+// CancelOrderEventCommand cancels the ride order and removes the order-event link.
+type CancelOrderEventCommand struct {
+	UID          types.ID
+	OrderEventID types.ID
 }
 
-// CreateEvent persists a new calendar event and returns its generated ID.
+// CreateEvent persists a new calendar event, registers the user as an attendee, and returns the event ID.
 func (s *Service) CreateEvent(ctx context.Context, cmd CreateEventCommand) (types.ID, error) {
 	if cmd.Title == "" {
 		return "", ErrBadRequest
@@ -97,6 +102,9 @@ func (s *Service) CreateEvent(ctx context.Context, cmd CreateEventCommand) (type
 	}
 	if err := s.store.CreateEvent(ctx, e); err != nil {
 		return "", err
+	}
+	if cmd.UID != "" {
+		_ = s.store.CreateSchedule(ctx, &Schedule{UID: cmd.UID, EventID: e.ID})
 	}
 	return e.ID, nil
 }
@@ -126,9 +134,9 @@ func (s *Service) DeleteEvent(ctx context.Context, id types.ID) error {
 	return s.store.DeleteEvent(ctx, id)
 }
 
-// CreateAndTieOrder creates a ride order and a Schedule entry linking the user's event
-// to the new order. If the schedule insert fails, the order is cancelled as a best-effort cleanup.
-func (s *Service) CreateAndTieOrder(ctx context.Context, cmd CreateAndTieOrderCommand) (*Schedule, error) {
+// CreateOrderEvent creates a ride order and a link between the order and the calendar event.
+// If the order-event insert fails, the order is cancelled as a best-effort cleanup.
+func (s *Service) CreateOrderEvent(ctx context.Context, cmd CreateOrderEventCommand) (*OrderEvent, error) {
 	if cmd.UID == "" || cmd.EventID == "" || cmd.PassengerID == "" || cmd.RideType == "" {
 		return nil, ErrBadRequest
 	}
@@ -141,51 +149,62 @@ func (s *Service) CreateAndTieOrder(ctx context.Context, cmd CreateAndTieOrderCo
 	if err != nil {
 		return nil, err
 	}
-	sc := &Schedule{
-		UID:       cmd.UID,
+	oe := &OrderEvent{
+		ID:        newID(),
 		EventID:   cmd.EventID,
-		TiedOrder: &orderID,
+		OrderID:   orderID,
+		UID:       cmd.UID,
+		CreatedAt: time.Now(),
 	}
-	if err := s.store.CreateSchedule(ctx, sc); err != nil {
+	if err := s.store.CreateOrderEvent(ctx, oe); err != nil {
 		// Best-effort: cancel the order to avoid an orphaned ride request.
 		_ = s.order.Cancel(ctx, order.CancelCommand{
 			OrderID:   orderID,
 			ActorType: "system",
-			Reason:    "schedule_creation_failed",
+			Reason:    "order_event_creation_failed",
 		})
 		return nil, err
 	}
-	return sc, nil
+	return oe, nil
 }
 
-// UntieOrder cancels the tied ride order and removes the order link from the schedule entry.
-func (s *Service) UntieOrder(ctx context.Context, cmd UntieOrderCommand) error {
-	if cmd.UID == "" || cmd.EventID == "" {
+// CancelOrderEvent cancels the linked ride order and removes the order-event link.
+// Only the owner of the order-event link may cancel it.
+func (s *Service) CancelOrderEvent(ctx context.Context, cmd CancelOrderEventCommand) error {
+	if cmd.UID == "" || cmd.OrderEventID == "" {
 		return ErrBadRequest
 	}
-	sc, err := s.store.GetSchedule(ctx, cmd.UID, cmd.EventID)
+	oe, err := s.store.GetOrderEvent(ctx, cmd.OrderEventID)
 	if err != nil {
 		return err
 	}
-	if sc.TiedOrder == nil {
-		return ErrBadRequest
+	if oe.UID != cmd.UID {
+		return ErrForbidden
 	}
 	if err := s.order.Cancel(ctx, order.CancelCommand{
-		OrderID:   *sc.TiedOrder,
+		OrderID:   oe.OrderID,
 		ActorType: "passenger",
 		Reason:    "removed_from_calendar",
 	}); err != nil {
 		return err
 	}
-	return s.store.UpdateScheduleTiedOrder(ctx, cmd.UID, cmd.EventID, nil)
+	return s.store.DeleteOrderEvent(ctx, cmd.OrderEventID)
 }
 
-// ListSchedulesByUser returns all schedule entries for the given user.
-func (s *Service) ListSchedulesByUser(ctx context.Context, uid types.ID) ([]*Schedule, error) {
+// ListAllEvents returns all calendar events for the given user.
+func (s *Service) ListAllEvents(ctx context.Context, uid types.ID) ([]*Event, error) {
 	if uid == "" {
 		return nil, ErrBadRequest
 	}
-	return s.store.ListSchedulesByUser(ctx, uid)
+	return s.store.ListEventsByUser(ctx, uid)
+}
+
+// ListAllOrders returns all order-event links for the given user.
+func (s *Service) ListAllOrders(ctx context.Context, uid types.ID) ([]*OrderEvent, error) {
+	if uid == "" {
+		return nil, ErrBadRequest
+	}
+	return s.store.ListOrderEventsByUser(ctx, uid)
 }
 
 func newID() types.ID {
