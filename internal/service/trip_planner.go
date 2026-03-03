@@ -216,7 +216,7 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 					sb.WriteString(fmt.Sprintf("%d. **%s** (%.1f ⭐️, %d 則評論)\n", i+1, place.Name, place.Rating, place.UserRatingsTotal))
 					sb.WriteString(fmt.Sprintf("   地址：%s\n", place.Address))
 				}
-				sb.WriteString("\n請問有喜歡哪一間嗎？需要幫您用預設資訊訂位嗎？")
+				sb.WriteString("\n請問有喜歡哪一間嗎？請直接告訴我數字，我將為您提供該餐廳的專屬訂位連結與資訊！")
 				return sb.String(), nil
 			}
 			return intent.Reply, nil
@@ -265,8 +265,34 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		// Phase 1: User hasn’t answered the charter vs single-leg question yet.
 		if intent.NeedsCharter == nil {
 			p.CurrentState = "itinerary_review"
-			// Return the AI’s nicely formatted reply verbatim — it already contains
-			// the itinerary listing and the mandatory closing question.
+			itinerary := p.CurrentItinerary
+			if len(intent.Itinerary) > 0 {
+				itinerary = intent.Itinerary
+			}
+			if len(itinerary) > 0 {
+				var sb strings.Builder
+				sb.WriteString("沒問題！為您規劃了一趟完美的專屬行程 🎉\n\n")
+				for i, item := range itinerary {
+					sb.WriteString(fmt.Sprintf("━━━ 第 %d 站 ━━━\n", i+1))
+					sb.WriteString(fmt.Sprintf("📍 **%s**\n", item.ActivityTitle))
+					sb.WriteString(fmt.Sprintf("🗺️  地點：%s\n", item.ActivityLocation))
+					sb.WriteString(fmt.Sprintf("⏰  時間：%s – %s\n", item.TotalStartTime, item.TotalEndTime))
+					sb.WriteString(fmt.Sprintf("✨  %s\n", item.ActivityDesc))
+					if item.NeedsRide {
+						ride := fmt.Sprintf("🚗  叫車：%s 從 %s 出發 → %s 抵達 %s",
+							item.RideStartTime, item.RideOrigin,
+							item.RideEndTime, item.RideDestination)
+						if len(item.IntermediateStops) > 0 {
+							ride += fmt.Sprintf("（途經：%s）", strings.Join(item.IntermediateStops, " → "))
+						}
+						sb.WriteString(ride + "\n")
+					}
+					sb.WriteString("\n")
+				}
+				sb.WriteString(intent.Reply)
+				return sb.String(), nil
+			}
+			// Fallback: no structured data, pass through the LLM reply.
 			return intent.Reply, nil
 		}
 
@@ -614,22 +640,33 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		}
 
 		// 步驟 B (管家發問)
-		if p.HasDiningIntent && !p.DiningPrompted {
+		// V4 擴展：除了普通叫車的 HasDiningIntent 外，如果是從行程模式（itinerary_review /
+		// charter_booking / multi_stop_booking）進入 completed，也要檢查行程本身
+		// 是否含有用餐安排，強制切換到管家狀態。
+		isItineraryMode := p.CurrentState == "itinerary_review" ||
+			p.CurrentState == "charter_booking" ||
+			p.CurrentState == "multi_stop_booking"
+		itineraryHasDining := isItineraryMode && p.itineraryContainsDining()
+
+		if (p.HasDiningIntent || itineraryHasDining) && !p.DiningPrompted {
 			// 【關鍵】攔截！切換到管家狀態，防止對話結束
 			p.DiningPrompted = true
-			p.RideFullyBooked = true // Start the Concierge Dining phase
+			p.RideFullyBooked = true
 			p.CurrentState = "dining_concierge"
 
 			var finalReply string
-			if p.TargetRestaurant != "" && p.TargetRestaurant != p.LastDestination {
-				// 情境 A: 已經知道餐廳
+			switch {
+			case p.TargetRestaurant != "" && p.TargetRestaurant != p.LastDestination:
+				// 情境 A: 已經知道餐廳名稱
 				finalReply = fmt.Sprintf("👉 偵測到您準備前往 %s，需要幫您用預設資訊（%s）透過 Inline 預約嗎？", p.TargetRestaurant, p.userName)
-			} else {
-				// 情境 B: 還不知道餐廳
+			case itineraryHasDining && p.LastDestination != "":
+				// 情境 B: V4 行程模式 — 知道目的地但尚未選餐廳
+				finalReply = fmt.Sprintf("👉 另外發現您的行程中包含用餐安排，需要為您推薦 %s 附近的熱門餐廳，並提供 Inline 訂位連結嗎？", p.LastDestination)
+			default:
+				// 情境 C: 一般模式，目的地未知
 				finalReply = "👉 另外發現您打算用餐，有需要幫您預約哪間餐廳嗎？還是需要為您推薦目的地附近的熱門餐廳？"
 			}
 
-			// 直接回傳我們組合好的管家台詞，捨棄 LLM 原本說的廢話
 			return confirmMsg + "\n\n" + finalReply, nil
 		}
 
@@ -963,27 +1000,42 @@ func (p *TripPlanner) wrapBookingResponse(ctx context.Context, intent *aiusage.I
 		return baseMsg + "\n\n行程已全數確認，司機將準時為您服務！祝您行程順利 🚗"
 	}
 
-	// Normal non-bypassed sequence (upsell prompt was just asked, waiting for user reply)
+	// Normal non-bypassed sequence (upsell prompt was just asked, waiting for user reply).
+	// 【Phase Isolation】: At this point we have just printed the booking summary and the
+	// upsell question. The user has NOT yet answered. We must NOT append any dining /
+	// restaurant string here — doing so would produce a double-question conflict.
+	// The dining concierge is activated in the "completed" handler on the NEXT turn,
+	// once the user has replied to the upsell.
 	if intent.NeedsReservation {
 		rName := intent.RestaurantName
 		if rName == "" {
 			rName = dest
 		}
-
 		inlineMsg := p.buildRealBookingMessage(ctx, rName, dest)
 		// Booking confirmation takes visual priority, but both belong in response.
 		return inlineMsg + "\n\n" + baseMsg
 	}
 
-	if !intent.IsDiningIntent {
-		return baseMsg
-	}
+	// Always return only the ride booking message here — no dining strings.
+	return baseMsg
+}
 
-	if intent.RestaurantName != "" {
-		return baseMsg + fmt.Sprintf("\n\n偵測到您將前往 %s，請問需要幫您以預設資訊（%s / %s）透過 Inline 進行訂位嗎？", intent.RestaurantName, p.userName, maskedPhone(p.userPhone))
+// itineraryContainsDining returns true if any item in the stored CurrentItinerary
+// has a dining-related keyword in its title or description. This lets the backend
+// detect "lunch" / "dinner" items even when the LLM forgot to set is_dining_intent.
+func (p *TripPlanner) itineraryContainsDining() bool {
+	diningKeywords := []string{
+		"午餐", "晚餐", "用餐", "吃飯", "吃午餐", "吃晚餐",
+		"下午茶", "營業", "dinner", "lunch", "restaurant", "dining",
 	}
-
-	return baseMsg + "\n\n另外發現您打算用餐，請問已選好餐廳了嗎？還是需要為您推薦目的地附近的熱門餐廳？"
+	for _, item := range p.CurrentItinerary {
+		for _, kw := range diningKeywords {
+			if strings.Contains(item.ActivityTitle, kw) || strings.Contains(item.ActivityDesc, kw) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // buildRealBookingMessage constructs the booking redirect message with real contact info.
