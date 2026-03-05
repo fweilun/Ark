@@ -119,6 +119,22 @@ func fmtWithWeekday(t time.Time) string {
 
 // PlanTrip processes a user message and returns a conversational response with trip details.
 func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLocation string, userContextInfo string) (string, error) {
+	// 0. STATE RESET — 任務重置機制 (New Task Detection)
+	// 當上一個任務已 completed，使用者再次傳訊代表要開啟全新任務。
+	// 徹底清空所有舊的 session 狀態，避免舊目的地/餐廳記憶污染新對話。
+	if p.CurrentState == "completed" {
+		p.HasDiningIntent = false
+		p.TargetRestaurant = ""
+		p.DiningPrompted = false
+		p.LastDestination = ""
+		p.LastIntermediateStop = ""
+		p.SelectedUpgrade = ""
+		p.RideFullyBooked = false
+		p.CurrentItinerary = nil
+		p.CurrentState = "clarification"
+		log.Printf("[StateReset] Completed state detected. Resetting all session context for new task.")
+	}
+
 	// 1. Prepare Context for AI
 	now := time.Now().In(p.loc)
 	currentContext := map[string]string{
