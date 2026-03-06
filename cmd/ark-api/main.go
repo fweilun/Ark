@@ -59,7 +59,7 @@ func main() {
 
 	matchingStore := matching.NewStore(redisClient, dbPool)
 
-	locationStore, err := location.NewStore(ctx, dbPool, redisClient)
+	locationStore, err := location.NewStore(ctx, dbPool, redisClient, []byte(cfg.Notification.FirebaseCredentialsJSON))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -112,6 +112,8 @@ func main() {
 		User:         userSvc,
 		Relation:     relationSvc,
 		Auth:         tokenVerifier,
+		DB:           dbPool,
+		Redis:        redisClient,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
@@ -123,7 +125,24 @@ func main() {
 	go orderSvc.RunScheduleIncentiveTicker(ctx)
 	go orderSvc.RunScheduleExpireTicker(ctx)
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	// Start HTTP server in a goroutine.
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server error: %v", err)
+		}
+	}()
+
+	log.Printf("server listening on %s", cfg.HTTP.Addr)
+
+	// Block until shutdown signal.
+	<-ctx.Done()
+	log.Println("shutting down server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("server shutdown error: %v", err)
 	}
+	log.Println("server stopped gracefully")
 }

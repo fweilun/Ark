@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,18 +17,16 @@ func TestService_SyncRTDBToRedis(t *testing.T) {
 	// 1. Initialize local Redis
 	rdb := newTestRedis(t)
 
-	// Since Go tests run in the package dir, we need to chdir to the project root
-	// to find the defaultCredentialsFile "zoozoo-v1-...json".
-	originalWD, _ := os.Getwd()
-	_ = os.Chdir(filepath.Join(originalWD, "../../.."))
-	t.Cleanup(func() { _ = os.Chdir(originalWD) })
+	// 2. Initialize the Store with real Firebase credentials from env
+	credsJSON := os.Getenv("FIREBASE_CREDENTIALS_JSON")
+	if credsJSON == "" {
+		t.Skip("Skipping: FIREBASE_CREDENTIALS_JSON not set")
+	}
 
-	// 2. Initialize the Store with real Firebase credentials
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// NewStore will connect to Firebase. If credentials fail or are missing, we skip.
-	store, err := NewStore(ctx, nil, rdb)
+	store, err := NewStore(ctx, nil, rdb, []byte(credsJSON))
 	if err != nil {
 		t.Skipf("Skipping RTDB integration test due to initialization failure (missing creds?): %v", err)
 	}

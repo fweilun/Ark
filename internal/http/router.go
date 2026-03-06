@@ -2,9 +2,13 @@
 package http
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
@@ -32,6 +36,8 @@ func NewRouter(
 	userService *user.Service,
 	relationService *relation.Service,
 	tokenVerifier middleware.TokenVerifier,
+	dbPool *pgxpool.Pool,
+	redisClient *redis.Client,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -41,7 +47,40 @@ func NewRouter(
 
 	// Public endpoints — no authentication required.
 	r.GET("/health", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+		defer cancel()
+
+		status := http.StatusOK
+		result := map[string]any{"status": "ok"}
+
+		// Check Postgres
+		if dbPool != nil {
+			if err := dbPool.Ping(ctx); err != nil {
+				status = http.StatusServiceUnavailable
+				result["db"] = "down"
+			} else {
+				result["db"] = "ok"
+			}
+		} else {
+			result["db"] = "not configured"
+		}
+
+		// Check Redis
+		if redisClient != nil {
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				status = http.StatusServiceUnavailable
+				result["redis"] = "down"
+			} else {
+				result["redis"] = "ok"
+			}
+		} else {
+			result["redis"] = "not configured"
+		}
+
+		if status != http.StatusOK {
+			result["status"] = "degraded"
+		}
+		c.JSON(status, result)
 	})
 
 	// All API routes require authentication.
@@ -97,8 +136,8 @@ func NewRouter(
 
 	// driver profile & status (auth required; driver_id always from context)
 	driverHandler := driver.NewHandler(driverService)
-	r.PUT("/api/v1/driver/create", driverHandler.Create)
-	r.PUT("/api/v1/driver/status", driverHandler.UpdateStatus)
+	api.POST("/api/v1/driver/create", driverHandler.Create)
+	api.PATCH("/api/v1/driver/status", driverHandler.UpdateStatus)
 
 	// relations (friend requests & friendships)
 	relationHandler := relation.NewHandler(relationService)

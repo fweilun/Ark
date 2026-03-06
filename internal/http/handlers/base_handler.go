@@ -13,13 +13,14 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-// isValidID ensures IDs are hex and 32 chars (matches current ID generator).
+// isValidID ensures IDs contain only alphanumeric characters, hyphens, and
+// underscores (compatible with both internal hex IDs and Firebase UIDs).
 func isValidID(v string) bool {
-	if len(v) > 32 {
+	if len(v) == 0 || len(v) > 128 {
 		return false
 	}
 	for _, c := range v {
-		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '-' || c == '_' {
 			continue
 		}
 		return false

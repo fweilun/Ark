@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	firebase "firebase.google.com/go/v4"
@@ -20,10 +19,9 @@ import (
 )
 
 const (
-	defaultCredentialsFile = "zoozoo-v1-firebase-adminsdk-fbsvc-2adb5592ce.json"
-	geoKeyDrivers          = "geo:drivers"
-	geoKeyPassengers       = "geo:passengers"
-	statusTTL              = 60 * time.Second
+	geoKeyDrivers    = "geo:drivers"
+	geoKeyPassengers = "geo:passengers"
+	statusTTL        = 60 * time.Second
 )
 
 type Store struct {
@@ -34,16 +32,17 @@ type Store struct {
 }
 
 // NewStore initialises the location store with Firebase RTDB (for polling) and Redis GEO.
-func NewStore(ctx context.Context, dbPool *pgxpool.Pool, redisClient *redis.Client) (*Store, error) {
-	projectID, err := parseProjectID(defaultCredentialsFile)
+// firebaseCredsJSON is the raw Firebase service-account JSON (from FIREBASE_CREDENTIALS_JSON env var).
+func NewStore(ctx context.Context, dbPool *pgxpool.Pool, redisClient *redis.Client, firebaseCredsJSON []byte) (*Store, error) {
+	projectID, err := parseProjectIDFromJSON(firebaseCredsJSON)
 	if err != nil {
-		return nil, fmt.Errorf("reading credentials file: %w", err)
+		return nil, fmt.Errorf("parsing firebase credentials: %w", err)
 	}
 
 	databaseURL := fmt.Sprintf("https://%s-default-rtdb.asia-southeast1.firebasedatabase.app", projectID)
 
 	conf := &firebase.Config{DatabaseURL: databaseURL}
-	app, err := firebase.NewApp(ctx, conf, option.WithCredentialsFile(defaultCredentialsFile))
+	app, err := firebase.NewApp(ctx, conf, option.WithCredentialsJSON(firebaseCredsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("initialising firebase app: %w", err)
 	}
@@ -61,19 +60,15 @@ func NewStore(ctx context.Context, dbPool *pgxpool.Pool, redisClient *redis.Clie
 	}, nil
 }
 
-func parseProjectID(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", path, err)
-	}
+func parseProjectIDFromJSON(data []byte) (string, error) {
 	var sa struct {
 		ProjectID string `json:"project_id"`
 	}
 	if err := json.Unmarshal(data, &sa); err != nil {
-		return "", fmt.Errorf("parsing %s: %w", path, err)
+		return "", fmt.Errorf("parsing firebase credentials JSON: %w", err)
 	}
 	if sa.ProjectID == "" {
-		return "", fmt.Errorf("project_id is empty in %s", path)
+		return "", fmt.Errorf("project_id is empty in firebase credentials JSON")
 	}
 	return sa.ProjectID, nil
 }

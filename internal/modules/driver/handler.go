@@ -2,8 +2,8 @@
 //
 // Endpoints:
 //
-//	PUT /api/v1/driver/create  — create driver profile (driver_id from context, body: license_number)
-//	PUT /api/v1/driver/status  — update driver status  (driver_id from context, body: status)
+//	POST  /api/v1/driver/create  — create driver profile (driver_id from context, body: license_number)
+//	PATCH /api/v1/driver/status  — update driver status  (driver_id from context, body: status)
 //
 // Auth: The Auth middleware must set "user_id" in the request context before these handlers run.
 // Any request without a valid user_id in context is rejected with 401 Unauthorized.
@@ -29,7 +29,7 @@ type createReq struct {
 	LicenseNumber string `json:"license_number"`
 }
 
-// Create handles PUT /api/v1/driver/create.
+// Create handles POST /api/v1/driver/create.
 // The driver_id is taken from the request context (set by Auth middleware).
 // Body: {"license_number": "..."}
 func (h *Handler) Create(c *gin.Context) {
@@ -61,7 +61,7 @@ type updateStatusReq struct {
 	Status string `json:"status"`
 }
 
-// UpdateStatus handles PUT /api/v1/driver/status.
+// UpdateStatus handles PATCH /api/v1/driver/status.
 // The driver_id is taken from the request context (set by Auth middleware).
 // Body: {"status": "available"|"on_trip"|"offline"}
 func (h *Handler) UpdateStatus(c *gin.Context) {
