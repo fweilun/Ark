@@ -12,6 +12,7 @@ import (
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
+	"ark/internal/worker"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/driver"
@@ -38,6 +39,7 @@ func NewRouter(
 	tokenVerifier middleware.TokenVerifier,
 	dbPool *pgxpool.Pool,
 	redisClient *redis.Client,
+	workerRegistry *worker.Registry,
 ) *gin.Engine {
 	// r := gin.New()
 	// r.Use(middleware.Recovery())
@@ -75,6 +77,25 @@ func NewRouter(
 			}
 		} else {
 			result["redis"] = "not configured"
+		}
+
+		// Check workers
+		if workerRegistry != nil {
+			workerStatus := workerRegistry.Status()
+			workerInfo := make(map[string]string, len(workerStatus))
+			allHealthy := workerRegistry.AllHealthy(60 * time.Second)
+			for name, lastBeat := range workerStatus {
+				age := time.Since(lastBeat)
+				if age > 60*time.Second {
+					workerInfo[name] = "stale"
+				} else {
+					workerInfo[name] = "ok"
+				}
+			}
+			result["workers"] = workerInfo
+			if !allHealthy {
+				status = http.StatusServiceUnavailable
+			}
 		}
 
 		if status != http.StatusOK {

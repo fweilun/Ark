@@ -27,6 +27,7 @@ import (
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/relation"
 	"ark/internal/modules/user"
+	"ark/internal/worker"
 )
 
 func main() {
@@ -100,6 +101,8 @@ func main() {
 		log.Printf("SECURITY WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
 	}
 
+	workerRegistry := worker.NewRegistry()
+
 	handler := httptransport.NewServer(httptransport.ServerDeps{
 		Order:        orderSvc,
 		Matching:     matchingSvc,
@@ -114,16 +117,21 @@ func main() {
 		Auth:         tokenVerifier,
 		DB:           dbPool,
 		Redis:        redisClient,
+		Workers:      workerRegistry,
 	})
 
 	server := &http.Server{Addr: cfg.HTTP.Addr, Handler: handler.Routes()}
 
-	go locationSvc.RunRTDBPoller(ctx, 30*time.Second)
-	go matchingSvc.RunScheduler(ctx)
-	go matchingSvc.RunNotificationScheduler(ctx)
-	go orderSvc.RunTimeoutMonitor(ctx)
-	go orderSvc.RunScheduleIncentiveTicker(ctx)
-	go orderSvc.RunScheduleExpireTicker(ctx)
+	restartDelay := 5 * time.Second
+	reg := workerRegistry
+	go worker.RunWithRecovery(ctx, "rtdb-poller", func(c context.Context) {
+		locationSvc.RunRTDBPoller(c, 30*time.Second)
+	}, restartDelay, reg)
+	go worker.RunWithRecovery(ctx, "matching-scheduler", matchingSvc.RunScheduler, restartDelay, reg)
+	go worker.RunWithRecovery(ctx, "notification-scheduler", matchingSvc.RunNotificationScheduler, restartDelay, reg)
+	go worker.RunWithRecovery(ctx, "timeout-monitor", orderSvc.RunTimeoutMonitor, restartDelay, reg)
+	go worker.RunWithRecovery(ctx, "schedule-incentive", orderSvc.RunScheduleIncentiveTicker, restartDelay, reg)
+	go worker.RunWithRecovery(ctx, "schedule-expire", orderSvc.RunScheduleExpireTicker, restartDelay, reg)
 
 	// Start HTTP server in a goroutine.
 	go func() {
