@@ -17,10 +17,12 @@ const DefaultTrafficBuffer = 10 * time.Minute
 
 // isTimePrecise checks that the iso_time string contains an explicit hour from the
 // user (i.e., not midnight 00:00 which is the AI's typical auto-fill default).
-// Returns false if the string is empty, unparseable, or falls exactly on midnight
-// without any plausible user intent (midnight bookings are vanishingly rare).
-// The backend treats midnight as a strong signal that the AI guessed the time.
-func isTimePrecise(isoTime *string) bool {
+// Returns false if the string is empty or unparseable.
+// When allowMidnight is false (the default for search / booking guard) it also
+// returns false for exactly 00:00:00 — treating it as an AI placeholder.
+// Pass allowMidnight = true for itinerary_planning, where the user may genuinely
+// want a midnight departure and the itinerary brain handles all time calculation.
+func isTimePrecise(isoTime *string, allowMidnight bool) bool {
 	if isoTime == nil || *isoTime == "" {
 		return false
 	}
@@ -29,9 +31,9 @@ func isTimePrecise(isoTime *string) bool {
 		// Malformed — not precise
 		return false
 	}
-	// If the time component is exactly 00:00:00, treat it as an AI-guessed placeholder.
-	// Real late-night requests (e.g., midnight) are extremely rare and should be confirmed anyway.
-	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
+	// If the time component is exactly 00:00:00 AND we are NOT in a context
+	// where midnight is plausible, treat it as an AI-guessed placeholder.
+	if !allowMidnight && t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
 		return false
 	}
 	return true
@@ -339,7 +341,10 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 		// ── BACKEND TIME PRECISION GUARD ─────────────────────────────────
 		// The AI must never reach the search branch with a vague / auto-filled time.
 		// If the iso_time looks like a midnight placeholder, demand a concrete hour.
-		if !isTimePrecise(intent.ISOTime) {
+		// itinerary_planning is exempt because the itinerary brain manages its own
+		// time nodes and a real midnight departure is legitimate for night trips.
+		allowMidnightForSearch := intent.Intent == "itinerary_planning"
+		if !isTimePrecise(intent.ISOTime, allowMidnightForSearch) {
 			isoTimeStr := "<nil>"
 			if intent.ISOTime != nil {
 				isoTimeStr = *intent.ISOTime
@@ -745,7 +750,10 @@ func (p *TripPlanner) PlanTrip(ctx context.Context, userMessage string, userLoca
 	// real user-given hour. If the AI guessed midnight as a placeholder, stop here.
 	// Only apply when a non-immediate time type is set (pure "immediate" has no iso_time anyway).
 	timeTypeIsSet := intent.TimeType != nil && *intent.TimeType != "immediate" && *intent.TimeType != ""
-	if timeTypeIsSet && !isTimePrecise(intent.ISOTime) {
+	// itinerary_planning is exempt: its ScheduleItems carry individual times;
+	// a top-level 00:00:00 iso_time for a midnight departure must be allowed.
+	allowMidnightForBooking := intent.Intent == "itinerary_planning"
+	if timeTypeIsSet && !isTimePrecise(intent.ISOTime, allowMidnightForBooking) {
 		isoTimeStr := "<nil>"
 		if intent.ISOTime != nil {
 			isoTimeStr = *intent.ISOTime
