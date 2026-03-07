@@ -4,7 +4,11 @@ package http
 import (
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+
 	"ark/internal/http/middleware"
+	"ark/internal/worker"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/driver"
@@ -29,6 +33,9 @@ type ServerDeps struct {
 	User         *user.Service
 	Relation     *relation.Service
 	Auth         middleware.TokenVerifier // Firebase token verifier; nil disables auth (dev mode)
+	DB           *pgxpool.Pool
+	Redis        *redis.Client
+	Workers      *worker.Registry
 }
 
 type Server struct {
@@ -36,7 +43,7 @@ type Server struct {
 }
 
 func NewServer(deps ServerDeps) *Server {
-	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar, deps.Driver, deps.User, deps.Relation, deps.Auth)
+	engine := NewRouter(deps.Order, deps.Matching, deps.Location, deps.Pricing, deps.AI, deps.Notification, deps.Calendar, deps.Driver, deps.User, deps.Relation, deps.Auth, deps.DB, deps.Redis, deps.Workers)
 	return &Server{Engine: engine}
 }
 
