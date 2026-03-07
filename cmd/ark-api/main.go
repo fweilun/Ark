@@ -26,6 +26,8 @@ import (
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/relation"
+	"ark/internal/ai"
+	"ark/internal/maps"
 	"ark/internal/modules/rideassistant"
 	"ark/internal/modules/user"
 	"ark/internal/worker"
@@ -102,10 +104,31 @@ func main() {
 		log.Printf("SECURITY WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
 	}
 
-	// Ride assistant (stub planner for now — will be replaced by Gemini integration).
+	// Ride assistant — wired with Gemini AI, Maps geocoding, and order service.
 	raStore := rideassistant.NewStore()
-	raPlanner := rideassistant.NewStubPlanner()
-	raSvc := rideassistant.NewService(raStore, raPlanner, nil)
+	var raPlanner rideassistant.Planner
+	var raGeocoder rideassistant.Geocoder
+	raOrderAdapter := rideassistant.NewOrderServiceAdapter(orderSvc)
+
+	geminiProvider, err := ai.NewGeminiProvider(ctx, cfg.AI.GeminiKey)
+	if err != nil {
+		log.Printf("ride assistant: Gemini init failed, using stub planner: %v", err)
+		raPlanner = rideassistant.NewStubPlanner()
+	} else {
+		raPlanner = rideassistant.NewGeminiAdapter(geminiProvider)
+		defer geminiProvider.Close()
+	}
+
+	if cfg.AI.MapsAPIKey != "" {
+		routeSvc, err := maps.NewRouteService(cfg.AI.MapsAPIKey)
+		if err != nil {
+			log.Printf("ride assistant: Maps RouteService init failed, geocoding disabled: %v", err)
+		} else {
+			raGeocoder = rideassistant.NewMapsGeocoder(routeSvc)
+		}
+	}
+
+	raSvc := rideassistant.NewService(raStore, raPlanner, raOrderAdapter, raGeocoder)
 
 	workerRegistry := worker.NewRegistry()
 

@@ -168,7 +168,7 @@ func NewRouter(
 
 	// ride assistant
 	if rideAssistantSvc != nil {
-		raHandler := rideassistant.NewHandler(rideAssistantSvc)
+		raHandler := handlers.NewRideAssistantHandler(rideAssistantSvc)
 		api.POST("/api/assistant/ride/messages", raHandler.HandleMessage)
 	}
 

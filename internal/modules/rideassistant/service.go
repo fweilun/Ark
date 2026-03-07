@@ -39,25 +39,32 @@ type Planner interface {
 	Parse(ctx context.Context, req ParserRequest) (*ParserResponse, error)
 }
 
+// Geocoder converts a text address into latitude/longitude coordinates.
+type Geocoder interface {
+	Geocode(ctx context.Context, address string) (lat, lng float64, err error)
+}
+
 // Service is the main ride assistant service.
 type Service struct {
-	store   *Store
-	planner Planner
-	orders  OrderCreator // nil until order integration is wired
-	loc     *time.Location
+	store    *Store
+	planner  Planner
+	orders   OrderCreator // nil until order integration is wired
+	geocoder Geocoder     // nil if geocoding is not available
+	loc      *time.Location
 }
 
 // NewService creates a ride assistant service.
-func NewService(store *Store, planner Planner, orders OrderCreator) *Service {
+func NewService(store *Store, planner Planner, orders OrderCreator, geocoder Geocoder) *Service {
 	loc, err := time.LoadLocation("Asia/Taipei")
 	if err != nil {
 		loc = time.UTC
 	}
 	return &Service{
-		store:   store,
-		planner: planner,
-		orders:  orders,
-		loc:     loc,
+		store:    store,
+		planner:  planner,
+		orders:   orders,
+		geocoder: geocoder,
+		loc:      loc,
 	}
 }
 
@@ -253,28 +260,32 @@ func (s *Service) buildResponse(ctx context.Context, sess *Session, parsed *Pars
 }
 
 // ---------------------------------------------------------------------------
-// Order creation (stubbed — will wire to real order.Service)
+// Order creation
 // ---------------------------------------------------------------------------
 
 func (s *Service) createBooking(ctx context.Context, sess *Session) (*BookingResult, error) {
 	if s.orders == nil {
-		// Stub: return a fake booking result until order service is wired.
 		return &BookingResult{
 			OrderID: "stub_" + sess.ID,
 			Status:  "created",
 		}, nil
 	}
 
+	// Geocode pickup and dropoff addresses.
+	pickup, err := s.geocodeAddress(ctx, sess.PickupText)
+	if err != nil {
+		return nil, fmt.Errorf("geocode pickup %q: %w", sess.PickupText, err)
+	}
+	dropoff, err := s.geocodeAddress(ctx, sess.DropoffText)
+	if err != nil {
+		return nil, fmt.Errorf("geocode dropoff %q: %w", sess.DropoffText, err)
+	}
+
 	// Determine if this is a scheduled or instant ride.
-	// If departure is more than 5 minutes in the future, treat as scheduled.
 	isScheduled := sess.DepartureAt != nil && time.Until(*sess.DepartureAt) > 5*time.Minute
 	sess.IsScheduled = isScheduled
 
 	userID := types.ID(sess.UserID)
-	// NOTE: Pickup/dropoff are text — geocoding will be needed before calling
-	// the real order service. For now we use zero-value Points.
-	pickup := types.Point{}
-	dropoff := types.Point{}
 
 	if isScheduled {
 		orderID, err := s.orders.CreateScheduled(ctx, CreateScheduledOrderCommand{
@@ -301,4 +312,15 @@ func (s *Service) createBooking(ctx context.Context, sess *Session) (*BookingRes
 		return nil, err
 	}
 	return &BookingResult{OrderID: string(orderID), Status: "waiting"}, nil
+}
+
+func (s *Service) geocodeAddress(ctx context.Context, address string) (types.Point, error) {
+	if s.geocoder == nil {
+		return types.Point{}, nil
+	}
+	lat, lng, err := s.geocoder.Geocode(ctx, address)
+	if err != nil {
+		return types.Point{}, err
+	}
+	return types.Point{Lat: lat, Lng: lng}, nil
 }

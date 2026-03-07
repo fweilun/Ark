@@ -17,7 +17,7 @@ func (m *mockPlanner) Parse(_ context.Context, _ ParserRequest) (*ParserResponse
 }
 
 func newTestService(planner Planner) *Service {
-	return NewService(NewStore(), planner, nil)
+	return NewService(NewStore(), planner, nil, nil)
 }
 
 func TestHandleMessage_Clarification(t *testing.T) {
