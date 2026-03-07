@@ -71,8 +71,8 @@ func (m *mockStore) UpdateStatusWithLock(_ context.Context, id types.ID, newStat
 func setupRouter(svc *Service) *gin.Engine {
 	r := gin.New()
 	h := NewHandler(svc)
-	r.PUT("/api/v1/driver/create", h.Create)
-	r.PUT("/api/v1/driver/status", h.UpdateStatus)
+	r.PUT("/api/driver/create", h.Create)
+	r.PUT("/api/driver/status", h.UpdateStatus)
 	return r
 }
 
@@ -95,7 +95,7 @@ func TestCreate_Unauthenticated(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"license_number": "ABC-123"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/create", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	// No user_id in context — unauthenticated.
 
@@ -113,7 +113,7 @@ func TestUpdateStatus_Unauthenticated(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"status": StatusAvailable})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/status", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
 	// No user_id in context — unauthenticated.
 
@@ -133,7 +133,7 @@ func TestCreate_MissingLicenseNumber(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"license_number": ""})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/create", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-1")
 
@@ -151,7 +151,7 @@ func TestCreate_Success(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"license_number": "AB-1234"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/create", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-1")
 
@@ -195,7 +195,7 @@ func TestCreate_DuplicateDriver(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"license_number": "AB-1234"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/create", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-2")
 
@@ -216,7 +216,7 @@ func TestUpdateStatus_InvalidStatus(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"status": "flying"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/status", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-3")
 
@@ -237,7 +237,7 @@ func TestUpdateStatus_Success(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"status": StatusOnTrip})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/status", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-4")
 
@@ -272,7 +272,7 @@ func TestUpdateStatus_MissingBody(t *testing.T) {
 	r := setupRouter(svc)
 
 	body := jsonBody(map[string]any{"status": ""})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/status", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "driver-5")
 
@@ -293,7 +293,7 @@ func TestDriverIDNeverFromBody(t *testing.T) {
 
 	// Body includes a "driver_id" field — the handler must ignore it.
 	body := jsonBody(map[string]any{"license_number": "EF-1111", "driver_id": "attacker-id"})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/driver/create", body)
+	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "real-driver-6")
 

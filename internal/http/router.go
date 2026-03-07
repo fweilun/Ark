@@ -12,7 +12,6 @@ import (
 
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
-	"ark/internal/worker"
 	"ark/internal/modules/aiusage"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/driver"
@@ -23,6 +22,7 @@ import (
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/relation"
 	"ark/internal/modules/user"
+	"ark/internal/worker"
 )
 
 func NewRouter(
@@ -157,8 +157,8 @@ func NewRouter(
 
 	// driver profile & status (auth required; driver_id always from context)
 	driverHandler := driver.NewHandler(driverService)
-	api.POST("/api/v1/driver/create", driverHandler.Create)
-	api.PATCH("/api/v1/driver/status", driverHandler.UpdateStatus)
+	api.POST("/api/driver/create", driverHandler.Create)
+	api.PATCH("/api/driver/status", driverHandler.UpdateStatus)
 
 	// relations (friend requests & friendships)
 	relationHandler := relation.NewHandler(relationService)
