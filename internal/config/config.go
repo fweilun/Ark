@@ -23,8 +23,9 @@ type Config struct {
 		Addr string
 	}
 	Matching MatchingConfig
-	AI       struct {
-		GeminiKey string
+	AI struct {
+		GeminiKey  string
+		MapsAPIKey string
 	}
 	Notification struct {
 		FirebaseCredentialsJSON string
@@ -43,6 +44,7 @@ func Load() (Config, error) {
 		return cfg, err
 	}
 	cfg.AI.GeminiKey = geminiKey
+	cfg.AI.MapsAPIKey = envOrDefault("GOOGLE_MAPS_API_KEY", "")
 	cfg.Notification.FirebaseCredentialsJSON = envOrDefault("FIREBASE_CREDENTIALS_JSON", "")
 	return cfg, nil
 }

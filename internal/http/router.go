@@ -21,6 +21,7 @@ import (
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/relation"
+	"ark/internal/modules/rideassistant"
 	"ark/internal/modules/user"
 	"ark/internal/worker"
 )
@@ -37,6 +38,7 @@ func NewRouter(
 	userService *user.Service,
 	relationService *relation.Service,
 	tokenVerifier middleware.TokenVerifier,
+	rideAssistantSvc *rideassistant.Service,
 	dbPool *pgxpool.Pool,
 	redisClient *redis.Client,
 	workerRegistry *worker.Registry,
@@ -163,6 +165,12 @@ func NewRouter(
 	// relations (friend requests & friendships)
 	relationHandler := relation.NewHandler(relationService)
 	relation.RegisterRoutes(api, relationHandler)
+
+	// ride assistant
+	if rideAssistantSvc != nil {
+		raHandler := handlers.NewRideAssistantHandler(rideAssistantSvc)
+		api.POST("/api/assistant/ride/messages", raHandler.HandleMessage)
+	}
 
 	return r
 }
