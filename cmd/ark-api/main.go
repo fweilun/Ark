@@ -26,6 +26,7 @@ import (
 	"ark/internal/modules/order"
 	"ark/internal/modules/pricing"
 	"ark/internal/modules/relation"
+	"ark/internal/modules/rideassistant"
 	"ark/internal/modules/user"
 	"ark/internal/worker"
 )
@@ -101,6 +102,11 @@ func main() {
 		log.Printf("SECURITY WARNING: FIREBASE_CREDENTIALS_JSON not set; auth middleware disabled (dev mode)")
 	}
 
+	// Ride assistant (stub planner for now — will be replaced by Gemini integration).
+	raStore := rideassistant.NewStore()
+	raPlanner := rideassistant.NewStubPlanner()
+	raSvc := rideassistant.NewService(raStore, raPlanner, nil)
+
 	workerRegistry := worker.NewRegistry()
 
 	handler := httptransport.NewServer(httptransport.ServerDeps{
@@ -114,8 +120,9 @@ func main() {
 		Driver:       driverSvc,
 		User:         userSvc,
 		Relation:     relationSvc,
-		Auth:         tokenVerifier,
-		DB:           dbPool,
+		Auth:          tokenVerifier,
+		RideAssistant: raSvc,
+		DB:            dbPool,
 		Redis:        redisClient,
 		Workers:      workerRegistry,
 	})
