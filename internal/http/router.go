@@ -31,7 +31,7 @@ func NewRouter(
 	matchingService *matching.Service,
 	locationService *location.Service,
 	pricingService *pricing.Service,
-	aiService *aiusage.Service,
+	aiService aiusage.Service,
 	notificationService *notification.Service,
 	calendarService *calendar.Service,
 	driverService *driver.Service,
