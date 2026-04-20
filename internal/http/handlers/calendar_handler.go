@@ -57,6 +57,18 @@ type schedulesListResponse struct {
 }
 
 // CreateEvent handles POST /api/calendar/events.
+//
+// @Summary      Create calendar event
+// @Description  Creates a calendar event for the authenticated user. `from`/`to` must be RFC3339 timestamps.
+// @Tags         Calendar
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      createEventReq               true  "Event from/to/title/description"
+// @Success      201   {object}  dto.CalendarEventResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Router       /api/calendar/events [post]
 func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 	var req createEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,6 +99,20 @@ func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 }
 
 // EditEvent handles PUT /api/calendar/events/:id.
+//
+// @Summary      Edit calendar event
+// @Description  Replaces the stored calendar event with the supplied fields. Same validation rules as CreateEvent.
+// @Tags         Calendar
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id    path      string                        true  "Event ID"
+// @Param        body  body      editEventReq                  true  "Updated event fields"
+// @Success      200   {object}  dto.CalendarEventResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      404   {object}  httpx.ErrorBody
+// @Router       /api/calendar/events/{id} [put]
 func (h *CalendarHandler) EditEvent(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" || !isValidID(id) {
@@ -122,6 +148,17 @@ func (h *CalendarHandler) EditEvent(c *gin.Context) {
 }
 
 // DeleteEvent handles DELETE /api/calendar/events/:id.
+//
+// @Summary      Delete calendar event
+// @Description  Removes the calendar event (and any ride schedule tied to it). Returns 204 on success.
+// @Tags         Calendar
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Event ID"
+// @Success      204
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Router       /api/calendar/events/{id} [delete]
 func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" || !isValidID(id) {
@@ -137,6 +174,20 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 
 // CreateAndTieOrder handles POST /api/calendar/schedules — creates a ride order and ties it to an existing event.
 // The authenticated user_id (from context) is used as both the schedule UID and the passenger_id.
+//
+// @Summary      Tie a ride order to a calendar event
+// @Description  Creates a scheduled ride order whose pickup window is derived from the referenced calendar event, and ties the two together so cancelling/deleting the event also untethers the order.
+// @Tags         Calendar
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      createAndTieOrderReq          true  "Event id + ride pickup/dropoff"
+// @Success      201   {object}  dto.CalendarScheduleResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      404   {object}  httpx.ErrorBody
+// @Failure      409   {object}  httpx.ErrorBody
+// @Router       /api/calendar/schedules [post]
 func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
@@ -169,6 +220,17 @@ func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 
 // UntieOrder handles DELETE /api/calendar/schedules/:event_id/order.
 // The authenticated user_id from context is used as the schedule UID.
+//
+// @Summary      Untie ride order from calendar event
+// @Description  Breaks the tie between a calendar event and its associated scheduled order. The event stays; the order is cancelled.
+// @Tags         Calendar
+// @Security     FirebaseAuth
+// @Param        event_id  path  string  true  "Calendar event ID"
+// @Success      204
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Router       /api/calendar/schedules/{event_id}/order [delete]
 func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 	eventID := c.Param("event_id")
 	if eventID == "" || !isValidID(eventID) {
@@ -192,6 +254,15 @@ func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 
 // ListSchedules handles GET /api/calendar/schedules.
 // The authenticated user_id from context is used to filter schedules.
+//
+// @Summary      List schedules for current user
+// @Description  Returns every calendar-backed ride schedule the authenticated user owns, flattened into the `schedules` array.
+// @Tags         Calendar
+// @Produce      json
+// @Security     FirebaseAuth
+// @Success      200  {object}  schedulesListResponse
+// @Failure      401  {object}  httpx.ErrorBody
+// @Router       /api/calendar/schedules [get]
 func (h *CalendarHandler) ListSchedules(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {

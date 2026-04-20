@@ -33,6 +33,17 @@ import (
 	"ark/internal/worker"
 )
 
+// @title           ZooArk API
+// @version         0.1.0
+// @description     ZooArk 叫車平台後端 API。除了 POST /api/users、GET /health 和 GET /readyz 之外，所有 endpoint 都需要 Firebase Auth ID Token（`Authorization: Bearer <token>`）。金額欄位以 TWD 分（1/100 元）為單位。
+// @contact.name    ZooArk Team
+// @host            localhost:8080
+// @BasePath        /
+// @schemes         http https
+// @securityDefinitions.apikey FirebaseAuth
+// @in                         header
+// @name                       Authorization
+// @description                Firebase ID Token, formatted as `Bearer <token>`.
 func main() {
 	cfg, err := config.Load()
 	if err != nil {

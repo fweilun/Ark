@@ -31,6 +31,20 @@ type createOrderReq struct {
 	RideType   string  `json:"ride_type" binding:"required"`
 }
 
+// Create handles POST /api/orders — passenger creates an instant (realtime) order.
+//
+// @Summary      Create instant order
+// @Description  Creates an on-demand (immediate) ride order for the authenticated passenger and enters the waiting queue.
+// @Tags         Order
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      createOrderReq      true  "Pickup/dropoff and ride type"
+// @Success      201   {object}  dto.OrderResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      409   {object}  httpx.ErrorBody
+// @Router       /api/orders [post]
 func (h *OrderHandler) Create(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
@@ -58,6 +72,8 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	})
 }
 
+// Get handles GET /api/orders/:id — returns the order's minimal summary.
+// Note: not currently registered on the router; kept for future use.
 func (h *OrderHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -79,6 +95,19 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	})
 }
 
+// Status handles GET /api/orders/:id/status — returns the order's current status,
+// status_version (optimistic-lock version), and assigned driver_id (if any).
+//
+// @Summary      Get order status
+// @Description  Returns the current status, optimistic-lock version, and assigned driver_id (if any) for a single order.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string                    true  "Order ID"
+// @Success      200  {object}  dto.OrderStatusResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/status [get]
 func (h *OrderHandler) Status(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -105,6 +134,19 @@ func (h *OrderHandler) Status(c *gin.Context) {
 	writeJSON(c, http.StatusOK, resp)
 }
 
+// Cancel handles POST /api/orders/:id/cancel — passenger cancels an order.
+//
+// @Summary      Cancel order (passenger)
+// @Description  Cancels the order as the passenger. For scheduled orders past the free-cancel deadline, `late_cancel:true` is returned so the client can warn the user that a penalty may apply.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/cancel [post]
 func (h *OrderHandler) Cancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -141,6 +183,18 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 }
 
 // Match is a temporary MVP endpoint to move order from waiting -> approaching.
+//
+// @Summary      Match order to driver (MVP)
+// @Description  Temporary MVP endpoint that atomically matches an order in `waiting` with the authenticated driver and transitions it to `approaching`. Will be replaced by the dispatcher.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/match [post]
 func (h *OrderHandler) Match(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -167,6 +221,19 @@ func (h *OrderHandler) Match(c *gin.Context) {
 	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusApproaching)})
 }
 
+// Accept handles POST /api/orders/:id/accept — driver accepts an order.
+//
+// @Summary      Accept order (driver)
+// @Description  Driver accepts a ride offer; transitions the order to `approaching`.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/accept [post]
 func (h *OrderHandler) Accept(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -193,6 +260,19 @@ func (h *OrderHandler) Accept(c *gin.Context) {
 	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusApproaching)})
 }
 
+// Deny handles POST /api/orders/:id/deny — driver declines an order; it falls back to `waiting`.
+//
+// @Summary      Deny order (driver)
+// @Description  Driver declines the ride offer. The order is returned to the `waiting` queue for re-matching.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/deny [post]
 func (h *OrderHandler) Deny(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -220,6 +300,18 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusWaiting)})
 }
 
+// Arrive handles POST /api/orders/:id/arrived — driver signals they have reached the pickup point.
+//
+// @Summary      Driver arrived at pickup
+// @Description  Driver signals arrival at the pickup location. Transitions the order from `approaching` to `arrived`.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/arrived [post]
 func (h *OrderHandler) Arrive(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -238,6 +330,18 @@ func (h *OrderHandler) Arrive(c *gin.Context) {
 	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusArrived)})
 }
 
+// Meet handles POST /api/orders/:id/meet — passenger has boarded; the trip begins.
+//
+// @Summary      Passenger boarded
+// @Description  Passenger has boarded; transitions the order from `arrived` to `driving` and the trip begins.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/meet [post]
 func (h *OrderHandler) Meet(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -256,6 +360,18 @@ func (h *OrderHandler) Meet(c *gin.Context) {
 	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusDriving)})
 }
 
+// Complete handles POST /api/orders/:id/complete — driver signals trip completion; order moves into `payment`.
+//
+// @Summary      Trip complete (enter payment)
+// @Description  Driver signals dropoff is complete; transitions the order from `driving` to `payment` so the passenger can settle the fare.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/complete [post]
 func (h *OrderHandler) Complete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -275,6 +391,17 @@ func (h *OrderHandler) Complete(c *gin.Context) {
 }
 
 // Pay is a temporary MVP endpoint to move order from payment -> complete.
+//
+// @Summary      Pay for trip (MVP)
+// @Description  Temporary MVP endpoint that marks the order as paid and transitions it from `payment` to `complete`. Will be replaced by the real payment flow.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/pay [post]
 func (h *OrderHandler) Pay(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -306,6 +433,18 @@ type createScheduledReq struct {
 }
 
 // CreateScheduled handles POST /api/orders/scheduled.
+//
+// @Summary      Create scheduled order
+// @Description  Creates a scheduled (future) ride. The driver pool is surfaced via the available-scheduled endpoint; drivers claim it within the schedule window.
+// @Tags         Order
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      createScheduledReq  true  "Pickup/dropoff, ride_type, RFC3339 scheduled_at and schedule_window_mins"
+// @Success      201   {object}  dto.OrderResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Router       /api/orders/scheduled [post]
 func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
@@ -401,6 +540,15 @@ func orderListToScheduledSummaries(orders []*order.Order) []dto.ScheduledOrderSu
 }
 
 // ListScheduledByPassenger handles GET /api/orders/scheduled.
+//
+// @Summary      List my scheduled orders
+// @Description  Returns every scheduled order owned by the authenticated passenger, projected through ScheduledOrderSummary.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Success      200  {object}  scheduledOrdersResponse
+// @Failure      401  {object}  httpx.ErrorBody
+// @Router       /api/orders/scheduled [get]
 func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 	passengerID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
@@ -416,6 +564,17 @@ func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 }
 
 // ListAvailableScheduled handles GET /api/orders/scheduled/available?from=...&to=...
+//
+// @Summary      List claimable scheduled orders
+// @Description  Returns scheduled orders within [from,to] that have not yet been claimed by a driver. Both `from` and `to` must be RFC3339 timestamps and `from` must be strictly before `to`.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        from  query     string  true  "RFC3339 window start (inclusive)"
+// @Param        to    query     string  true  "RFC3339 window end (exclusive)"
+// @Success      200   {object}  scheduledOrdersResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Router       /api/orders/scheduled/available [get]
 func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
@@ -446,6 +605,18 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 }
 
 // Claim handles POST /api/orders/:id/claim (driver claims a scheduled order).
+//
+// @Summary      Claim scheduled order (driver)
+// @Description  Driver claims a `scheduled` order; transitions it to `assigned` and binds the driver_id until the driver departs or cancels.
+// @Tags         Order
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id   path      string              true  "Order ID"
+// @Success      200  {object}  dto.OrderResponse
+// @Failure      400  {object}  httpx.ErrorBody
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      409  {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/claim [post]
 func (h *OrderHandler) Claim(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -477,6 +648,20 @@ type driverCancelReq struct {
 }
 
 // DriverCancel handles POST /api/orders/:id/driver-cancel (driver cancels a claimed scheduled order).
+//
+// @Summary      Release claimed scheduled order (driver)
+// @Description  Driver releases a previously-claimed `assigned` scheduled order back to `scheduled` so another driver can pick it up. Optional `reason` is recorded on the order history.
+// @Tags         Order
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        id    path      string               true   "Order ID"
+// @Param        body  body      driverCancelReq      false  "Optional reason string"
+// @Success      200   {object}  dto.OrderResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      409   {object}  httpx.ErrorBody
+// @Router       /api/orders/{id}/driver-cancel [post]
 func (h *OrderHandler) DriverCancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {

@@ -36,6 +36,19 @@ type createReq struct {
 // Create handles POST /api/driver/create.
 // The driver_id is taken from the request context (set by Auth middleware).
 // Body: {"license_number": "..."}
+//
+// @Summary      Create driver profile
+// @Description  Creates the driver profile for the authenticated user (driver_id always comes from the Firebase token, never from the body). Starts the driver in status "available".
+// @Tags         Driver
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      createReq           true  "License info"
+// @Success      201   {object}  dto.DriverResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      409   {object}  httpx.ErrorBody
+// @Router       /api/driver/create [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req createReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -69,6 +82,19 @@ type updateStatusResponse struct {
 // UpdateStatus handles PATCH /api/driver/status.
 // The driver_id is taken from the request context (set by Auth middleware).
 // Body: {"status": "available"|"on_trip"|"offline"}
+//
+// @Summary      Update driver status
+// @Description  Changes the authenticated driver's status to one of available, on_trip, offline. Returns the new status echoed back.
+// @Tags         Driver
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      updateStatusReq       true  "New status"
+// @Success      200   {object}  updateStatusResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      404   {object}  httpx.ErrorBody
+// @Router       /api/driver/status [patch]
 func (h *Handler) UpdateStatus(c *gin.Context) {
 	var req updateStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {

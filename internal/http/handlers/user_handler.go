@@ -38,6 +38,17 @@ type updateUserNameReq struct {
 }
 
 // CreateUser handles POST /api/users.
+//
+// @Summary      Create user profile
+// @Description  Creates a user row after Firebase signup. This endpoint is public (no auth required) — the server trusts the client-supplied email/phone until a follow-up PATCH.
+// @Tags         Auth & User
+// @Accept       json
+// @Produce      json
+// @Param        body  body      createUserReq    true  "New user payload"
+// @Success      201   {object}  dto.UserResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      500   {object}  httpx.ErrorBody
+// @Router       /api/users [post]
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req createUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -58,6 +69,16 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 }
 
 // GetMe handles GET /api/me — returns the current user identified by token.
+//
+// @Summary      Get current user
+// @Description  Returns the profile of the user identified by the Firebase ID Token in the Authorization header.
+// @Tags         Auth & User
+// @Produce      json
+// @Security     FirebaseAuth
+// @Success      200  {object}  dto.UserResponse
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Router       /api/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
@@ -73,6 +94,18 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 }
 
 // UpdateMe handles PATCH /api/me — updates only the current user's name.
+//
+// @Summary      Update current user name
+// @Description  Patches the display name of the currently authenticated user. Only the name field is editable today.
+// @Tags         Auth & User
+// @Accept       json
+// @Security     FirebaseAuth
+// @Param        body  body      updateUserNameReq  true  "Updated name"
+// @Success      204
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      404   {object}  httpx.ErrorBody
+// @Router       /api/me [patch]
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
@@ -92,6 +125,15 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 }
 
 // DeleteMe handles DELETE /api/me — deletes the current authenticated user.
+//
+// @Summary      Delete current user
+// @Description  Hard-deletes the authenticated user's profile. There is no soft-delete today, so the row is removed immediately.
+// @Tags         Auth & User
+// @Security     FirebaseAuth
+// @Success      204
+// @Failure      401  {object}  httpx.ErrorBody
+// @Failure      404  {object}  httpx.ErrorBody
+// @Router       /api/me [delete]
 func (h *UserHandler) DeleteMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {

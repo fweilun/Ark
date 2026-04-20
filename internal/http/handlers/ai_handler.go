@@ -29,6 +29,19 @@ type aiChatReq struct {
 }
 
 // Chat handles POST /api/ai/chat.
+//
+// @Summary      AI chat (Gemini, token-metered)
+// @Description  Sends a message to the Gemini-backed chat service on behalf of `uid`. Requests are rate-limited by the shared token budget; 429 is returned when the caller has exhausted their quota.
+// @Tags         AI
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      aiChatReq           true  "User id and message"
+// @Success      200   {object}  dto.AIChatResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      429   {object}  httpx.ErrorBody
+// @Failure      500   {object}  httpx.ErrorBody
+// @Router       /api/ai/chat [post]
 func (h *AIHandler) Chat(c *gin.Context) {
 	var req aiChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {

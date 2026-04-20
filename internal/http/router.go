@@ -63,38 +63,14 @@ func NewRouter(
 	// Health returns a simple {"status": "ok", "version": "..."} payload.
 	// Detailed component checks (db, redis, workers) have moved off this
 	// endpoint; liveness probes should stay cheap.
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, dto.HealthResponse{Status: "ok", Version: apiVersion})
-	})
+	r.GET("/health", healthHandler)
 
 	// /readyz is the readiness probe. It pings Postgres and Redis with a
 	// short timeout and returns 200 {status:"ok"} when every dependency is
 	// reachable, or 503 {status:"degraded", detail:<concise error>} the
 	// moment any one of them fails. The probe never blocks longer than
 	// readyzProbeTimeout so a hung downstream cannot wedge the endpoint.
-	r.GET("/readyz", func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), readyzProbeTimeout)
-		defer cancel()
-		if dbPool != nil {
-			if err := dbPool.Ping(ctx); err != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{
-					"status": "degraded",
-					"detail": "postgres: " + err.Error(),
-				})
-				return
-			}
-		}
-		if redisClient != nil {
-			if err := redisClient.Ping(ctx).Err(); err != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{
-					"status": "degraded",
-					"detail": "redis: " + err.Error(),
-				})
-				return
-			}
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
+	r.GET("/readyz", readyzHandler(dbPool, redisClient))
 
 	// All API routes require authentication.
 	api := r.Group("/")
@@ -163,4 +139,67 @@ func NewRouter(
 	}
 
 	return r
+}
+
+// readyzDetailResponse is the 503 body emitted by /readyz when a
+// dependency probe fails.
+type readyzDetailResponse struct {
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+// readyzOKResponse is the 200 body emitted by /readyz when every
+// probed dependency is reachable.
+type readyzOKResponse struct {
+	Status string `json:"status"`
+}
+
+// healthHandler is the liveness probe.
+//
+// @Summary      Liveness probe
+// @Description  Returns {status:"ok", version:"<api version>"}. Never touches downstream dependencies so the probe stays cheap.
+// @Tags         Health
+// @Produce      json
+// @Success      200  {object}  dto.HealthResponse
+// @Router       /health [get]
+func healthHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, dto.HealthResponse{Status: "ok", Version: apiVersion})
+}
+
+// readyzHandler returns a Gin handler that pings Postgres and Redis
+// under a short timeout and reports degraded/ok. The closure captures
+// the pool/client so the endpoint-level signature stays handler-shaped
+// (gin.HandlerFunc) and swag can annotate the returned handler.
+//
+// @Summary      Readiness probe
+// @Description  Pings Postgres and Redis with a 2s timeout; returns 200 {status:"ok"} when both are healthy, 503 {status:"degraded", detail:"<component>: <error>"} on any failure.
+// @Tags         Health
+// @Produce      json
+// @Success      200  {object}  readyzOKResponse
+// @Failure      503  {object}  readyzDetailResponse
+// @Router       /readyz [get]
+func readyzHandler(dbPool *pgxpool.Pool, redisClient *redis.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), readyzProbeTimeout)
+		defer cancel()
+		if dbPool != nil {
+			if err := dbPool.Ping(ctx); err != nil {
+				c.JSON(http.StatusServiceUnavailable, readyzDetailResponse{
+					Status: "degraded",
+					Detail: "postgres: " + err.Error(),
+				})
+				return
+			}
+		}
+		if redisClient != nil {
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, readyzDetailResponse{
+					Status: "degraded",
+					Detail: "redis: " + err.Error(),
+				})
+				return
+			}
+		}
+		c.JSON(http.StatusOK, readyzOKResponse{Status: "ok"})
+	}
 }

@@ -36,6 +36,19 @@ type ensureDeviceResponse struct {
 
 // EnsureDevice handles POST /api/notifications/register.
 // The authenticated user_id is taken from the request context (set by auth middleware).
+//
+// @Summary      Register FCM device
+// @Description  Registers (or refreshes) an FCM device token for the authenticated user so push notifications can be delivered. Idempotent — re-registering the same token updates the row.
+// @Tags         Notification
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      ensureDeviceReq       true  "FCM token, platform, optional device_id"
+// @Success      200   {object}  ensureDeviceResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      500   {object}  httpx.ErrorBody
+// @Router       /api/notifications/register [post]
 func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
@@ -66,6 +79,7 @@ func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 }
 
 // SendNotification handles POST /api/notifications/send (staff only — TODO).
+// Currently always returns 501 Not Implemented and is not registered on the router.
 func (h *NotificationHandler) SendNotification(c *gin.Context) {
 	httpx.RespondError(c, http.StatusNotImplemented, "not implemented")
 }

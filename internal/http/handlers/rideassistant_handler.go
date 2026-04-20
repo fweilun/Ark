@@ -34,6 +34,19 @@ type rideAssistantReq struct {
 
 // HandleMessage processes POST /api/assistant/ride/messages.
 // The authenticated user_id comes from the Auth middleware context.
+//
+// @Summary      Ride-assistant turn
+// @Description  Sends a user message to the ride-assistant state machine. The assistant responds with a reply, optionally a session snapshot for follow-up turns, and optionally a booking block once a ride has been committed.
+// @Tags         AI
+// @Accept       json
+// @Produce      json
+// @Security     FirebaseAuth
+// @Param        body  body      rideAssistantReq              true  "Assistant message payload"
+// @Success      200   {object}  dto.RideAssistantResponse
+// @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
+// @Failure      500   {object}  httpx.ErrorBody
+// @Router       /api/assistant/ride/messages [post]
 func (h *RideAssistantHandler) HandleMessage(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || userID == "" {
