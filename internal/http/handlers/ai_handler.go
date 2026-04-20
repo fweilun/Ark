@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/dto"
 	"ark/internal/modules/aiusage"
 )
 
@@ -22,26 +23,26 @@ func NewAIHandler(aiSvc *aiusage.Service) *AIHandler {
 }
 
 type aiChatReq struct {
-	UID     string `json:"uid"`
-	Message string `json:"message"`
+	UID     string `json:"uid" binding:"required"`
+	Message string `json:"message" binding:"required"`
 }
 
 // Chat handles POST /api/ai/chat.
 func (h *AIHandler) Chat(c *gin.Context) {
 	var req aiChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	req.UID = strings.TrimSpace(req.UID)
 	req.Message = strings.TrimSpace(req.Message)
 	if req.UID == "" || req.Message == "" {
-		writeError(c, http.StatusBadRequest, "missing uid or message")
+		RespondError(c, http.StatusBadRequest, "missing uid or message")
 		return
 	}
 	if !isValidID(req.UID) {
-		writeError(c, http.StatusBadRequest, "invalid uid")
+		RespondError(c, http.StatusBadRequest, "invalid uid")
 		return
 	}
 
@@ -52,12 +53,12 @@ func (h *AIHandler) Chat(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, aiusage.ErrInsufficientTokens):
-			writeError(c, http.StatusTooManyRequests, err.Error())
+			RespondError(c, http.StatusTooManyRequests, err.Error())
 		default:
-			writeError(c, http.StatusInternalServerError, "internal error")
+			RespondError(c, http.StatusInternalServerError, "internal error")
 		}
 		return
 	}
 
-	writeJSON(c, http.StatusOK, map[string]any{"reply": reply})
+	writeJSON(c, http.StatusOK, dto.AIChatResponse{Reply: reply})
 }

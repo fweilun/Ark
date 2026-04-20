@@ -1,0 +1,1319 @@
+openapi: 3.0.3
+info:
+  title: ZooArk API
+  description: |
+    ZooArk 叫車平台後端 API。
+    
+    ## 認證
+    除了 `POST /api/users` 和 `GET /health` 之外，所有 endpoint 都需要 Firebase Auth ID Token。
+    
+    ```
+    Authorization: Bearer <firebase_id_token>
+    ```
+    
+    ## 注意事項
+    - `matching` 模組尚在開發中，不在此文件範圍內
+    - `POST /api/notifications/send` 暫時停用
+    - `pricing` 目前固定回傳 15000 TWD（TODO: 串接 pricing_rates 表）
+  version: 0.1.0
+  contact:
+    name: ZooArk Team
+
+servers:
+  - url: http://localhost:8080
+    description: 本地開發
+  - url: https://<your-deployment>.fly.dev
+    description: 雲端部署（TBD）
+
+tags:
+  - name: Health
+  - name: Auth & User
+  - name: Driver
+  - name: Order
+  - name: Calendar
+  - name: Notification
+  - name: Relation
+  - name: AI
+
+# ─────────────────────────────────────────────
+# Security Scheme
+# ─────────────────────────────────────────────
+components:
+  securitySchemes:
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID Token
+
+  # ─────────────────────────────────────────────
+  # Reusable Schemas
+  # ─────────────────────────────────────────────
+  schemas:
+
+    # ── Common ──
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "unauthorized"
+
+    # ── Order ──
+    OrderStatus:
+      type: string
+      description: |
+        訂單狀態機：
+        - `none` → 初始（未使用）
+        - `waiting` → 等待配對
+        - `scheduled` → 預約單等待領取
+        - `assigned` → 預約單已被司機領取（等待出發）
+        - `approaching` → 司機前往上車點
+        - `arrived` → 司機抵達上車點
+        - `driving` → 行程中
+        - `payment` → 行程結束，等待付款
+        - `complete` → 完成
+        - `cancelled` → 已取消
+        - `denied` → 被拒單後回 waiting
+        - `expired` → 逾時自動取消
+      enum:
+        - none
+        - waiting
+        - scheduled
+        - assigned
+        - approaching
+        - arrived
+        - driving
+        - payment
+        - complete
+        - cancelled
+        - denied
+        - expired
+
+    OrderType:
+      type: string
+      enum:
+        - immediate
+        - scheduled
+
+    RideType:
+      type: string
+      enum:
+        - standard
+        - premium
+        - xl
+        - pet
+      description: 車種類型
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        passenger_id:
+          type: string
+          description: Firebase UID
+        driver_id:
+          type: string
+          nullable: true
+          description: Firebase UID，配對前為 null
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        status_version:
+          type: integer
+          description: 樂觀鎖版本號，每次狀態變更 +1
+        order_type:
+          $ref: '#/components/schemas/OrderType'
+        ride_type:
+          $ref: '#/components/schemas/RideType'
+        pickup_lat:
+          type: number
+          format: double
+        pickup_lng:
+          type: number
+          format: double
+        dropoff_lat:
+          type: number
+          format: double
+        dropoff_lng:
+          type: number
+          format: double
+        estimated_fee:
+          type: integer
+          description: 估計費用（TWD 分，例如 15000 = 150 元）
+        actual_fee:
+          type: integer
+          nullable: true
+          description: 實際費用，行程結束後填入
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 預約時間（僅 scheduled 訂單）
+        schedule_window_mins:
+          type: integer
+          nullable: true
+          description: 預約接受窗口（分鐘）
+        cancel_deadline_at:
+          type: string
+          format: date-time
+          nullable: true
+        incentive_bonus:
+          type: integer
+          description: 獎勵加成（TWD 分）
+        created_at:
+          type: string
+          format: date-time
+
+    # ── User ──
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: Firebase UID
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        user_type:
+          type: string
+          enum: [passenger, driver]
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Driver ──
+    DriverStatus:
+      type: string
+      enum:
+        - offline
+        - online
+        - busy
+
+    Driver:
+      type: object
+      properties:
+        driver_id:
+          type: string
+          description: Firebase UID
+        license_number:
+          type: string
+        vehicle_id:
+          type: string
+        rating:
+          type: number
+          format: float
+          example: 4.8
+        status:
+          $ref: '#/components/schemas/DriverStatus'
+
+    # ── Calendar ──
+    CalendarEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    CalendarSchedule:
+      type: object
+      description: 綁定行程的行事曆事件（後端回傳 flat 結構）
+      properties:
+        uid:
+          type: string
+          description: Firebase UID
+        event_id:
+          type: string
+          format: uuid
+        tied_order:
+          type: string
+          format: uuid
+          nullable: true
+          description: 綁定的訂單 ID，未綁定時為 null
+
+    # ── Relation ──
+    FriendshipStatus:
+      type: string
+      enum:
+        - pending
+        - accepted
+        - rejected
+
+    Friendship:
+      type: object
+      properties:
+        user_id:
+          type: string
+        friend_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/FriendshipStatus'
+        remark:
+          type: string
+          nullable: true
+
+    UserSummary:
+      type: object
+      description: 搜尋用戶時的精簡資料
+      properties:
+        user_id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+
+    # ── AI ──
+    AIChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, model]
+        content:
+          type: string
+
+# ─────────────────────────────────────────────
+# Global Security
+# ─────────────────────────────────────────────
+security:
+  - FirebaseAuth: []
+
+# ─────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────
+paths:
+
+  # ── Health ──────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: 健康檢查
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── Auth & User ──────────────────────────────
+  /api/users:
+    post:
+      tags: [Auth & User]
+      summary: 建立用戶（Firebase OTP 完成後呼叫）
+      description: |
+        公開端點，不需要 Auth header。
+        Frontend 在 Firebase SMS OTP 驗證成功後，呼叫此 endpoint 將用戶寫入 Postgres。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, name, phone]
+              properties:
+                user_id:
+                  type: string
+                  description: Firebase UID
+                name:
+                  type: string
+                  example: 王小明
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                phone:
+                  type: string
+                  example: "+886912345678"
+                user_type:
+                  type: string
+                  enum: [passenger, driver]
+                  default: passenger
+      responses:
+        '201':
+          description: 用戶建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: 用戶已存在
+
+  /api/me:
+    get:
+      tags: [Auth & User]
+      summary: 取得當前登入用戶資料
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 用戶不存在（尚未呼叫 POST /api/users）
+
+    patch:
+      tags: [Auth & User]
+      summary: 更新當前用戶資料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Auth & User]
+      summary: 刪除當前用戶帳號
+      responses:
+        '204':
+          description: 刪除成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Driver ──────────────────────────────────
+  /api/driver/create:
+    post:
+      tags: [Driver]
+      summary: 建立司機資料（用戶升級為司機）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [license_number, vehicle_id]
+              properties:
+                license_number:
+                  type: string
+                  example: "AB-1234"
+                vehicle_id:
+                  type: string
+                  example: "車牌號碼或車輛識別碼"
+      responses:
+        '201':
+          description: 司機建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 司機資料已存在
+
+  /api/driver/status:
+    patch:
+      tags: [Driver]
+      summary: 更新司機上下線狀態
+      description: |
+        司機上線時 (`online`)，後端會在 Redis 設定 TTL 60s 的在線標記。
+        前端需每隔 30s 持續呼叫以維持在線（或位置上報到 Firebase RTDB 時一併呼叫）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/DriverStatus'
+      responses:
+        '200':
+          description: 狀態更新成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Order ──────────────────────────────────
+  /api/orders:
+    post:
+      tags: [Order]
+      summary: 建立即時訂單
+      description: |
+        乘客呼叫。建立後狀態為 `waiting`，等待配對引擎分配司機。
+        
+        **注意：** 配對引擎目前仍在開發中，建立後需手動呼叫 `POST /api/orders/:id/match` 觸發。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, ride_type]
+              properties:
+                pickup_lat:
+                  type: number
+                  format: double
+                  example: 25.0330
+                pickup_lng:
+                  type: number
+                  format: double
+                  example: 121.5654
+                dropoff_lat:
+                  type: number
+                  format: double
+                  example: 25.0478
+                dropoff_lng:
+                  type: number
+                  format: double
+                  example: 121.5169
+                ride_type:
+                  $ref: '#/components/schemas/RideType'
+      responses:
+        '201':
+          description: 訂單建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: 參數錯誤
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 乘客已有進行中的訂單
+
+  /api/orders/scheduled:
+    post:
+      tags: [Order]
+      summary: 建立預約訂單
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, ride_type, scheduled_at]
+              properties:
+                pickup_lat:
+                  type: number
+                  format: double
+                pickup_lng:
+                  type: number
+                  format: double
+                dropoff_lat:
+                  type: number
+                  format: double
+                dropoff_lng:
+                  type: number
+                  format: double
+                ride_type:
+                  $ref: '#/components/schemas/RideType'
+                scheduled_at:
+                  type: string
+                  format: date-time
+                  description: RFC3339 格式
+                  example: "2026-04-25T08:00:00+08:00"
+                schedule_window_mins:
+                  type: integer
+                  default: 30
+                  description: 司機可領單的窗口時間（分鐘）
+      responses:
+        '201':
+          description: 預約訂單建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Order]
+      summary: 乘客查詢自己的預約單列表
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/scheduled/available:
+    get:
+      tags: [Order]
+      summary: 司機查詢可領取的預約單
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: 篩選起始時間（RFC3339）
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: 篩選結束時間（RFC3339）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/status:
+    get:
+      tags: [Order]
+      summary: 查詢訂單目前狀態
+      description: 前端可輪詢此 endpoint 追蹤訂單狀態（建議 3~5 秒一次）
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: '#/components/schemas/OrderStatus'
+                  status_version:
+                    type: integer
+                  driver_id:
+                    type: string
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{id}/cancel:
+    post:
+      tags: [Order]
+      summary: 乘客取消訂單
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 取消成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 訂單狀態不允許取消
+
+  /api/orders/{id}/match:
+    post:
+      tags: [Order]
+      summary: 觸發訂單配對（開發測試用）
+      description: |
+        正常流程中由配對引擎自動觸發，目前配對引擎尚在開發中，可手動呼叫此 endpoint 模擬配對。
+        
+        **driver_id 自動從 Auth header（Bearer token）取得**，呼叫者即為配對司機，無需 request body。
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 配對成功，訂單狀態 → approaching
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{id}/accept:
+    post:
+      tags: [Order]
+      summary: 司機接受訂單
+      description: 訂單狀態：waiting → approaching
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 接單成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/orders/{id}/deny:
+    post:
+      tags: [Order]
+      summary: 司機拒絕訂單
+      description: 訂單狀態：approaching → waiting（重新等待配對）
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 拒單成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/arrived:
+    post:
+      tags: [Order]
+      summary: 司機抵達上車點
+      description: 訂單狀態：approaching → arrived
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/meet:
+    post:
+      tags: [Order]
+      summary: 乘客上車，行程開始
+      description: 訂單狀態：arrived → driving
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/complete:
+    post:
+      tags: [Order]
+      summary: 司機完成行程
+      description: 訂單狀態：driving → payment
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: OK，回傳實際費用
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actual_fee:
+                    type: integer
+                    description: TWD 分
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/pay:
+    post:
+      tags: [Order]
+      summary: 乘客確認付款
+      description: 訂單狀態：payment → complete
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 付款成功，訂單完成
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/orders/{id}/claim:
+    post:
+      tags: [Order]
+      summary: 司機領取預約單
+      description: 訂單狀態：scheduled → assigned
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 領單成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 預約單已被其他司機領取
+
+  /api/orders/{id}/driver-cancel:
+    post:
+      tags: [Order]
+      summary: 司機取消已領取的預約單
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: "車輛故障"
+      responses:
+        '200':
+          description: 取消成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Calendar ──────────────────────────────────
+  /api/calendar/events:
+    post:
+      tags: [Calendar]
+      summary: 建立行事曆事件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to, title]
+              properties:
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+                title:
+                  type: string
+                  example: "英文家教"
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: 建立成功（後端只回傳 event_id）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                    format: uuid
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/calendar/events/{id}:
+    put:
+      tags: [Calendar]
+      summary: 編輯行事曆事件
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: 更新成功（後端只回傳 event_id）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                    format: uuid
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Calendar]
+      summary: 刪除行事曆事件
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 刪除成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/calendar/schedules:
+    get:
+      tags: [Calendar]
+      summary: 列出用戶的行程排程（含綁定訂單）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CalendarSchedule'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Calendar]
+      summary: 建立行事曆事件並同時建立綁定的預約訂單
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to, title, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, ride_type]
+              properties:
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                pickup_lat:
+                  type: number
+                  format: double
+                pickup_lng:
+                  type: number
+                  format: double
+                dropoff_lat:
+                  type: number
+                  format: double
+                dropoff_lng:
+                  type: number
+                  format: double
+                ride_type:
+                  $ref: '#/components/schemas/RideType'
+      responses:
+        '201':
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarSchedule'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Calendar]
+      summary: 解除行事曆事件與訂單的綁定
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 解除成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Notification ──────────────────────────────────
+  /api/notifications/register:
+    post:
+      tags: [Notification]
+      summary: 註冊 FCM Token（確保裝置已登記）
+      description: |
+        App 啟動後、或 FCM Token 更新時呼叫。
+        後端使用 UPSERT（user_id + fcm_token），重複呼叫安全。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fcm_token, platform]
+              properties:
+                fcm_token:
+                  type: string
+                  description: Firebase Cloud Messaging token
+                platform:
+                  type: string
+                  enum: [android, ios]
+                device_id:
+                  type: string
+                  description: 裝置唯一識別碼（可選）
+      responses:
+        '200':
+          description: 註冊成功（或已存在，更新 last_seen_at）
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Relation ──────────────────────────────────
+  /api/relations/search:
+    get:
+      tags: [Relation]
+      summary: 搜尋用戶（加好友前的搜尋）
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 搜尋關鍵字（名稱或手機號碼）
+      responses:
+        '200':
+          description: OK（直接回傳陣列，非 wrapped object）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/requests:
+    post:
+      tags: [Relation]
+      summary: 傳送好友邀請（by user_id）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_user_id]
+              properties:
+                to_user_id:
+                  type: string
+                  description: 對方 Firebase UID
+      responses:
+        '204':
+          description: 邀請發送成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 已是好友或邀請已發送
+
+    get:
+      tags: [Relation]
+      summary: 查詢收到的好友邀請
+      responses:
+        '200':
+          description: OK（直接回傳陣列，非 wrapped object）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Friendship'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/requests/by-phone:
+    post:
+      tags: [Relation]
+      summary: 傳送好友邀請（by 手機號碼）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telephone]
+              properties:
+                telephone:
+                  type: string
+                  example: "+886912345678"
+      responses:
+        '204':
+          description: 邀請發送成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 找不到此手機號碼的用戶
+
+  /api/relations/requests/sent:
+    get:
+      tags: [Relation]
+      summary: 查詢已發送的好友邀請
+      responses:
+        '200':
+          description: OK（直接回傳陣列，非 wrapped object）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Friendship'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/requests/{friend_id}:
+    delete:
+      tags: [Relation]
+      summary: 取消已發送的好友邀請
+      parameters:
+        - $ref: '#/components/parameters/FriendId'
+      responses:
+        '204':
+          description: 取消成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/requests/{friend_id}/accept:
+    post:
+      tags: [Relation]
+      summary: 接受好友邀請
+      parameters:
+        - $ref: '#/components/parameters/FriendId'
+      responses:
+        '200':
+          description: 接受成功，雙方成為好友
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/requests/{friend_id}/reject:
+    post:
+      tags: [Relation]
+      summary: 拒絕好友邀請
+      parameters:
+        - $ref: '#/components/parameters/FriendId'
+      responses:
+        '200':
+          description: 拒絕成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/friends:
+    get:
+      tags: [Relation]
+      summary: 取得好友列表
+      responses:
+        '200':
+          description: OK（直接回傳陣列，非 wrapped object）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/friends/{friend_id}:
+    delete:
+      tags: [Relation]
+      summary: 移除好友
+      parameters:
+        - $ref: '#/components/parameters/FriendId'
+      responses:
+        '204':
+          description: 移除成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/relations/friends/{friend_id}/is:
+    get:
+      tags: [Relation]
+      summary: 確認是否為好友關係
+      parameters:
+        - $ref: '#/components/parameters/FriendId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_friend:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── AI ──────────────────────────────────
+  /api/ai/chat:
+    post:
+      tags: [AI]
+      summary: AI 自由對話（Gemini）
+      description: 一般 AI 聊天，消耗用戶月度 token 配額。uid 從 Auth header 取得。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  example: "幫我查一下台北到高雄的距離"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: 月度 token 配額已耗盡
+
+  /api/assistant/ride/messages:
+    post:
+      tags: [AI]
+      summary: AI 對話式叫車（Ride Assistant）
+      description: |
+        透過自然語言對話建立叫車訂單。
+        後端維護 Session 狀態，逐步收集上車地點、目的地、車種、時間等資訊，
+        收集完整後自動建立訂單。
+        
+        **前端目前尚未實作此頁面。**
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                session:
+                  type: string
+                  description: 對話 Session ID，首次呼叫可不傳（後端自動建立）
+                  nullable: true
+                message:
+                  type: string
+                  example: "我要從台北車站去松山機場"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: 對話狀態（例如 collecting / complete）
+                  reply:
+                    type: string
+                    description: AI 回應訊息
+                  session:
+                    type: string
+                    description: Session ID，後續請求需帶上
+                  booking:
+                    $ref: '#/components/schemas/Order'
+                    nullable: true
+                    description: 訂單建立完成後填入，否則為 null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ─────────────────────────────────────────────
+# Reusable Parameters & Responses
+# ─────────────────────────────────────────────
+  responses:
+    Unauthorized:
+      description: 未授權（Firebase ID Token 無效或過期）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "unauthorized"
+
+    NotFound:
+      description: 資源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "not found"
+
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 訂單 UUID
+
+    FriendId:
+      name: friend_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 對方的 Firebase UID

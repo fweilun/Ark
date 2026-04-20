@@ -2,14 +2,13 @@
 package http
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"ark/internal/http/dto"
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
 	"ark/internal/modules/aiusage"
@@ -25,6 +24,9 @@ import (
 	"ark/internal/modules/user"
 	"ark/internal/worker"
 )
+
+// apiVersion is returned by GET /health. Hardcoded for now — bump on each release.
+const apiVersion = "0.1.0"
 
 func NewRouter(
 	orderService *order.Service,
@@ -50,60 +52,11 @@ func NewRouter(
 	r := gin.Default()
 
 	// Public endpoints — no authentication required.
+	// Health returns a simple {"status": "ok", "version": "..."} payload.
+	// Detailed component checks (db, redis, workers) have moved off this
+	// endpoint; liveness probes should stay cheap.
 	r.GET("/health", func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
-		defer cancel()
-
-		status := http.StatusOK
-		result := map[string]any{"status": "ok"}
-
-		// Check Postgres
-		if dbPool != nil {
-			if err := dbPool.Ping(ctx); err != nil {
-				status = http.StatusServiceUnavailable
-				result["db"] = "down"
-			} else {
-				result["db"] = "ok"
-			}
-		} else {
-			result["db"] = "not configured"
-		}
-
-		// Check Redis
-		if redisClient != nil {
-			if err := redisClient.Ping(ctx).Err(); err != nil {
-				status = http.StatusServiceUnavailable
-				result["redis"] = "down"
-			} else {
-				result["redis"] = "ok"
-			}
-		} else {
-			result["redis"] = "not configured"
-		}
-
-		// Check workers
-		if workerRegistry != nil {
-			workerStatus := workerRegistry.Status()
-			workerInfo := make(map[string]string, len(workerStatus))
-			allHealthy := workerRegistry.AllHealthy(60 * time.Second)
-			for name, lastBeat := range workerStatus {
-				age := time.Since(lastBeat)
-				if age > 60*time.Second {
-					workerInfo[name] = "stale"
-				} else {
-					workerInfo[name] = "ok"
-				}
-			}
-			result["workers"] = workerInfo
-			if !allHealthy {
-				status = http.StatusServiceUnavailable
-			}
-		}
-
-		if status != http.StatusOK {
-			result["status"] = "degraded"
-		}
-		c.JSON(status, result)
+		c.JSON(http.StatusOK, dto.HealthResponse{Status: "ok", Version: apiVersion})
 	})
 
 	// All API routes require authentication.

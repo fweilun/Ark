@@ -3,9 +3,11 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
 	"ark/internal/modules/user"
 	"ark/internal/types"
@@ -21,24 +23,24 @@ func NewUserHandler(svc *user.Service) *UserHandler {
 	return &UserHandler{svc: svc}
 }
 
-// --- request/response types ---
+// --- request types ---
 
 type createUserReq struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required"`
 	Phone    string `json:"phone"`
-	UserType string `json:"user_type"`
+	UserType string `json:"user_type" binding:"required"`
 }
 
 type updateUserNameReq struct {
-	Name string `json:"name"`
+	Name string `json:"name" binding:"required"`
 }
 
 // CreateUser handles POST /api/users.
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req createUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	u, err := h.svc.Create(c.Request.Context(), user.CreateCommand{
@@ -51,14 +53,14 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		writeUserError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusCreated, u)
+	writeJSON(c, http.StatusCreated, userToDTO(u))
 }
 
 // GetMe handles GET /api/me — returns the current user identified by token.
 func (h *UserHandler) GetMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	u, err := h.svc.GetByID(c.Request.Context(), types.ID(uid))
@@ -66,23 +68,19 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		writeUserError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, u)
+	writeJSON(c, http.StatusOK, userToDTO(u))
 }
 
 // UpdateMe handles PATCH /api/me — updates only the current user's name.
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req updateUserNameReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.Name == "" {
-		writeError(c, http.StatusBadRequest, "name is required")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := h.svc.UpdateName(c.Request.Context(), types.ID(uid), req.Name); err != nil {
@@ -96,7 +94,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 func (h *UserHandler) DeleteMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), types.ID(uid)); err != nil {
@@ -106,13 +104,28 @@ func (h *UserHandler) DeleteMe(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// userToDTO maps an internal *user.User to the public UserResponse shape.
+func userToDTO(u *user.User) dto.UserResponse {
+	if u == nil {
+		return dto.UserResponse{}
+	}
+	return dto.UserResponse{
+		UserID:    string(u.UserID),
+		Name:      u.Name,
+		Email:     u.Email,
+		Phone:     u.Phone,
+		UserType:  string(u.UserType),
+		CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
 func writeUserError(c *gin.Context, err error) {
 	switch err {
 	case user.ErrBadRequest:
-		writeError(c, http.StatusBadRequest, err.Error())
+		RespondError(c, http.StatusBadRequest, err.Error())
 	case user.ErrNotFound:
-		writeError(c, http.StatusNotFound, err.Error())
+		RespondError(c, http.StatusNotFound, err.Error())
 	default:
-		writeError(c, http.StatusInternalServerError, "internal error")
+		RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }

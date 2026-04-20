@@ -40,8 +40,12 @@ type Order struct {
 	Pickup        types.Point
 	Dropoff       types.Point
 	RideType      string
-	EstimatedFee  types.Money
-	ActualFee     *types.Money
+	// EstimatedFee is the pre-trip fare quote in TWD minor units
+	// (cents; 1/100 TWD). See internal/types/money.go for the unit convention.
+	EstimatedFee types.Money
+	// ActualFee is the post-trip charged fare in TWD minor units. Nil until
+	// the trip completes. See internal/types/money.go for the unit convention.
+	ActualFee *types.Money
 	CreatedAt     time.Time
 	MatchedAt     *time.Time
 	AcceptedAt    *time.Time
@@ -54,8 +58,11 @@ type Order struct {
 	ScheduledAt        *time.Time
 	ScheduleWindowMins *int
 	CancelDeadlineAt   *time.Time
-	IncentiveBonus     int64
-	AssignedAt         *time.Time
+	// IncentiveBonus is an accumulated driver-incentive kicker added when
+	// scheduled orders approach their pickup window. Value is in TWD minor
+	// units (cents; 1/100 TWD). See internal/types/money.go.
+	IncentiveBonus int64
+	AssignedAt     *time.Time
 	history            []Event
 }
 

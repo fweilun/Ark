@@ -11,8 +11,11 @@ package driver
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"ark/internal/http/dto"
 )
 
 // Handler holds the driver HTTP handlers.
@@ -26,7 +29,7 @@ func NewHandler(svc *Service) *Handler {
 }
 
 type createReq struct {
-	LicenseNumber string `json:"license_number"`
+	LicenseNumber string `json:"license_number" binding:"required"`
 }
 
 // Create handles POST /api/driver/create.
@@ -35,11 +38,7 @@ type createReq struct {
 func (h *Handler) Create(c *gin.Context) {
 	var req createReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.LicenseNumber == "" {
-		writeError(c, http.StatusBadRequest, "missing license_number")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -48,16 +47,21 @@ func (h *Handler) Create(c *gin.Context) {
 		writeDriverError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusCreated, map[string]any{
-		"driver_id":      d.ID,
-		"license_number": d.LicenseNumber,
-		"status":         d.Status,
-		"rating":         d.Rating,
-		"onboarded_at":   d.OnboardedAt,
+	writeJSON(c, http.StatusCreated, dto.DriverResponse{
+		DriverID:      string(d.ID),
+		LicenseNumber: d.LicenseNumber,
+		Status:        d.Status,
+		Rating:        d.Rating,
+		OnboardedAt:   d.OnboardedAt.UTC().Format(time.RFC3339),
 	})
 }
 
 type updateStatusReq struct {
+	Status string `json:"status" binding:"required,oneof=available on_trip offline"`
+}
+
+// updateStatusResponse mirrors the legacy {"status": "<new>"} acknowledgement.
+type updateStatusResponse struct {
 	Status string `json:"status"`
 }
 
@@ -67,11 +71,7 @@ type updateStatusReq struct {
 func (h *Handler) UpdateStatus(c *gin.Context) {
 	var req updateStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.Status == "" {
-		writeError(c, http.StatusBadRequest, "missing status")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -79,28 +79,31 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		writeDriverError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": req.Status})
+	writeJSON(c, http.StatusOK, updateStatusResponse{Status: req.Status})
 }
 
 func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
 }
 
-func writeError(c *gin.Context, status int, msg string) {
-	writeJSON(c, status, map[string]any{"error": msg})
+// RespondError writes the canonical {"error": msg} payload. Mirrors
+// ark/internal/http.RespondError to keep the wire shape consistent across
+// packages without introducing an import cycle.
+func RespondError(c *gin.Context, status int, msg string) {
+	c.JSON(status, gin.H{"error": msg})
 }
 
 func writeDriverError(c *gin.Context, err error) {
 	switch err {
 	case ErrForbidden:
-		writeError(c, http.StatusUnauthorized, "authentication required")
+		RespondError(c, http.StatusUnauthorized, "authentication required")
 	case ErrBadRequest:
-		writeError(c, http.StatusBadRequest, err.Error())
+		RespondError(c, http.StatusBadRequest, err.Error())
 	case ErrNotFound:
-		writeError(c, http.StatusNotFound, err.Error())
+		RespondError(c, http.StatusNotFound, err.Error())
 	case ErrConflict:
-		writeError(c, http.StatusConflict, err.Error())
+		RespondError(c, http.StatusConflict, err.Error())
 	default:
-		writeError(c, http.StatusInternalServerError, "internal error")
+		RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
 	"ark/internal/modules/order"
 	"ark/internal/types"
@@ -26,22 +27,18 @@ type createOrderReq struct {
 	PickupLng  float64 `json:"pickup_lng"`
 	DropoffLat float64 `json:"dropoff_lat"`
 	DropoffLng float64 `json:"dropoff_lng"`
-	RideType   string  `json:"ride_type"`
+	RideType   string  `json:"ride_type" binding:"required"`
 }
 
 func (h *OrderHandler) Create(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req createOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.RideType == "" {
-		writeError(c, http.StatusBadRequest, "missing fields")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	id, err := h.order.Create(c.Request.Context(), order.CreateCommand{
@@ -54,17 +51,20 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusWaiting})
+	writeJSON(c, http.StatusCreated, dto.OrderResponse{
+		OrderID: string(id),
+		Status:  string(order.StatusWaiting),
+	})
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	o, err := h.order.Get(c.Request.Context(), types.ID(id))
@@ -72,17 +72,20 @@ func (h *OrderHandler) Get(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"order_id": o.ID, "status": o.Status})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{
+		OrderID: string(o.ID),
+		Status:  string(o.Status),
+	})
 }
 
 func (h *OrderHandler) Status(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	o, err := h.order.Get(c.Request.Context(), types.ID(id))
@@ -90,13 +93,13 @@ func (h *OrderHandler) Status(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	resp := map[string]any{
-		"order_id":       o.ID,
-		"status":         o.Status,
-		"status_version": o.StatusVersion,
+	resp := dto.OrderStatusResponse{
+		OrderID:       string(o.ID),
+		Status:        string(o.Status),
+		StatusVersion: o.StatusVersion,
 	}
 	if o.DriverID != nil {
-		resp["driver_id"] = *o.DriverID
+		resp.DriverID = string(*o.DriverID)
 	}
 	writeJSON(c, http.StatusOK, resp)
 }
@@ -104,11 +107,11 @@ func (h *OrderHandler) Status(c *gin.Context) {
 func (h *OrderHandler) Cancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 
@@ -130,23 +133,26 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusCancelled, "late_cancel": lateCancel})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{
+		Status:     string(order.StatusCancelled),
+		LateCancel: &lateCancel,
+	})
 }
 
 // Match is a temporary MVP endpoint to move order from waiting -> approaching.
 func (h *OrderHandler) Match(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Match(c.Request.Context(), order.MatchCommand{
@@ -157,22 +163,22 @@ func (h *OrderHandler) Match(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusApproaching})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusApproaching)})
 }
 
 func (h *OrderHandler) Accept(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
@@ -183,22 +189,22 @@ func (h *OrderHandler) Accept(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusApproaching})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusApproaching)})
 }
 
 func (h *OrderHandler) Deny(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Deny(c.Request.Context(), order.DenyCommand{
@@ -210,17 +216,17 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 		return
 	}
 	// [CHECK]
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusWaiting})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusWaiting)})
 }
 
 func (h *OrderHandler) Arrive(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Arrive(c.Request.Context(), order.ArriveCommand{OrderID: types.ID(id)})
@@ -228,17 +234,17 @@ func (h *OrderHandler) Arrive(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusArrived})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusArrived)})
 }
 
 func (h *OrderHandler) Meet(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Meet(c.Request.Context(), order.MeetCommand{OrderID: types.ID(id)})
@@ -246,17 +252,17 @@ func (h *OrderHandler) Meet(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusDriving})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusDriving)})
 }
 
 func (h *OrderHandler) Complete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
@@ -264,18 +270,18 @@ func (h *OrderHandler) Complete(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusPayment})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusPayment)})
 }
 
 // Pay is a temporary MVP endpoint to move order from payment -> complete.
 func (h *OrderHandler) Pay(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Pay(c.Request.Context(), order.PayCommand{OrderID: types.ID(id)})
@@ -283,7 +289,7 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusComplete})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusComplete)})
 }
 
 // --- Scheduled-order endpoints ---
@@ -293,34 +299,26 @@ type createScheduledReq struct {
 	PickupLng          float64 `json:"pickup_lng"`
 	DropoffLat         float64 `json:"dropoff_lat"`
 	DropoffLng         float64 `json:"dropoff_lng"`
-	RideType           string  `json:"ride_type"`
-	ScheduledAt        string  `json:"scheduled_at"`         // RFC3339
-	ScheduleWindowMins int     `json:"schedule_window_mins"` // minutes before scheduled_at to open for claiming
+	RideType           string  `json:"ride_type" binding:"required"`
+	ScheduledAt        string  `json:"scheduled_at" binding:"required"` // RFC3339
+	ScheduleWindowMins int     `json:"schedule_window_mins" binding:"required,gt=0"`
 }
 
 // CreateScheduled handles POST /api/orders/scheduled.
 func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req createScheduledReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.RideType == "" || req.ScheduledAt == "" {
-		writeError(c, http.StatusBadRequest, "missing fields")
-		return
-	}
-	if req.ScheduleWindowMins <= 0 {
-		writeError(c, http.StatusBadRequest, "schedule_window_mins must be positive")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
 	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid scheduled_at; expected RFC3339")
+		RespondError(c, http.StatusBadRequest, "invalid scheduled_at; expected RFC3339")
 		return
 	}
 	id, err := h.order.CreateScheduled(c.Request.Context(), order.CreateScheduledCommand{
@@ -335,14 +333,24 @@ func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusCreated, map[string]any{"order_id": id, "status": order.StatusScheduled})
+	writeJSON(c, http.StatusCreated, dto.OrderResponse{
+		OrderID: string(id),
+		Status:  string(order.StatusScheduled),
+	})
+}
+
+// scheduledOrdersResponse wraps a list of orders for passenger/available endpoints.
+// Orders use the existing order.Order shape (not a DTO yet) — see the task
+// review output for the open TODO to build a full OrderSummary DTO.
+type scheduledOrdersResponse struct {
+	Orders []*order.Order `json:"orders"`
 }
 
 // ListScheduledByPassenger handles GET /api/orders/scheduled.
 func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 	passengerID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	orders, err := h.order.ListScheduledByPassenger(c.Request.Context(), types.ID(passengerID))
@@ -350,7 +358,7 @@ func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"orders": orders})
+	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orders})
 }
 
 // ListAvailableScheduled handles GET /api/orders/scheduled/available?from=...&to=...
@@ -358,21 +366,21 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 	if fromStr == "" || toStr == "" {
-		writeError(c, http.StatusBadRequest, "missing from or to")
+		RespondError(c, http.StatusBadRequest, "missing from or to")
 		return
 	}
 	from, err := time.Parse(time.RFC3339, fromStr)
 	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
+		RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
 		return
 	}
 	to, err := time.Parse(time.RFC3339, toStr)
 	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
+		RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
 		return
 	}
 	if !from.Before(to) {
-		writeError(c, http.StatusBadRequest, "from must be before to")
+		RespondError(c, http.StatusBadRequest, "from must be before to")
 		return
 	}
 	orders, err := h.order.ListAvailableScheduled(c.Request.Context(), from, to)
@@ -380,23 +388,23 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"orders": orders})
+	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orders})
 }
 
 // Claim handles POST /api/orders/:id/claim (driver claims a scheduled order).
 func (h *OrderHandler) Claim(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.ClaimScheduled(c.Request.Context(), order.ClaimScheduledCommand{
@@ -407,7 +415,7 @@ func (h *OrderHandler) Claim(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusAssigned})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusAssigned)})
 }
 
 type driverCancelReq struct {
@@ -418,21 +426,21 @@ type driverCancelReq struct {
 func (h *OrderHandler) DriverCancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		writeError(c, http.StatusBadRequest, "missing order id")
+		RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		writeError(c, http.StatusBadRequest, "invalid order id")
+		RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req driverCancelReq
 	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
-		writeError(c, http.StatusBadRequest, "invalid request body")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{
@@ -444,5 +452,5 @@ func (h *OrderHandler) DriverCancel(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, map[string]any{"status": order.StatusScheduled})
+	writeJSON(c, http.StatusOK, dto.OrderResponse{Status: string(order.StatusScheduled)})
 }

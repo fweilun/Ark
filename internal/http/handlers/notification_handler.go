@@ -23,9 +23,14 @@ func NewNotificationHandler(svc *notification.Service) *NotificationHandler {
 }
 
 type ensureDeviceReq struct {
-	FCMToken string `json:"fcm_token"`
-	Platform string `json:"platform"`
+	FCMToken string `json:"fcm_token" binding:"required"`
+	Platform string `json:"platform" binding:"required,oneof=ios android web"`
 	DeviceID string `json:"device_id,omitempty"`
+}
+
+// ensureDeviceResponse is the registered-device confirmation payload.
+type ensureDeviceResponse struct {
+	Message string `json:"message"`
 }
 
 // EnsureDevice handles POST /api/notifications/register.
@@ -33,13 +38,13 @@ type ensureDeviceReq struct {
 func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		writeError(c, http.StatusUnauthorized, "unauthorized")
+		RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req ensureDeviceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeError(c, http.StatusBadRequest, "invalid json")
+		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -47,26 +52,19 @@ func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 	req.Platform = strings.TrimSpace(req.Platform)
 
 	if req.FCMToken == "" || req.Platform == "" {
-		writeError(c, http.StatusBadRequest, "missing fcm_token or platform")
-		return
-	}
-
-	switch req.Platform {
-	case "ios", "android", "web":
-	default:
-		writeError(c, http.StatusBadRequest, "platform must be one of: ios, android, web")
+		RespondError(c, http.StatusBadRequest, "missing fcm_token or platform")
 		return
 	}
 
 	if err := h.svc.EnsureDevice(c.Request.Context(), types.ID(userID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
-		writeError(c, http.StatusInternalServerError, "internal error")
+		RespondError(c, http.StatusInternalServerError, "internal error")
 		return
 	}
 
-	writeJSON(c, http.StatusOK, map[string]any{"message": "device registered"})
+	writeJSON(c, http.StatusOK, ensureDeviceResponse{Message: "device registered"})
 }
 
 // SendNotification handles POST /api/notifications/send (staff only — TODO).
 func (h *NotificationHandler) SendNotification(c *gin.Context) {
-	writeError(c, http.StatusNotImplemented, "not implemented")
+	RespondError(c, http.StatusNotImplemented, "not implemented")
 }

@@ -1,4 +1,9 @@
 // README: Order store backed by PostgreSQL (minimal methods for MVP).
+//
+// Monetary columns (orders.estimated_fee, orders.actual_fee,
+// orders.incentive_bonus) are BIGINT values expressed in TWD minor units
+// (cents; 1/100 TWD). See internal/types/money.go for the project-wide unit
+// convention.
 package order
 
 import (

@@ -9,8 +9,11 @@ import (
 	"ark/internal/modules/order"
 )
 
-type errorResponse struct {
-	Error string `json:"error"`
+// RespondError writes the canonical {"error": msg} payload with the given
+// HTTP status. Mirrors ark/internal/http.RespondError — kept here to avoid
+// an import cycle (internal/http imports this package).
+func RespondError(c *gin.Context, status int, msg string) {
+	c.JSON(status, gin.H{"error": msg})
 }
 
 // isValidID ensures IDs contain only alphanumeric characters, hyphens, and
@@ -32,19 +35,15 @@ func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
 }
 
-func writeError(c *gin.Context, status int, msg string) {
-	writeJSON(c, status, errorResponse{Error: msg})
-}
-
 func writeOrderError(c *gin.Context, err error) {
 	switch err {
 	case order.ErrBadRequest:
-		writeError(c, http.StatusBadRequest, err.Error())
+		RespondError(c, http.StatusBadRequest, err.Error())
 	case order.ErrNotFound:
-		writeError(c, http.StatusNotFound, err.Error())
+		RespondError(c, http.StatusNotFound, err.Error())
 	case order.ErrInvalidState, order.ErrActiveOrder, order.ErrConflict:
-		writeError(c, http.StatusConflict, err.Error())
+		RespondError(c, http.StatusConflict, err.Error())
 	default:
-		writeError(c, http.StatusInternalServerError, "internal error")
+		RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }
