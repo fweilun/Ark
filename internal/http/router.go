@@ -2,7 +2,9 @@
 package http
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,6 +26,12 @@ import (
 	"ark/internal/modules/user"
 	"ark/internal/worker"
 )
+
+// readyzProbeTimeout caps the total time /readyz spends pinging
+// downstream dependencies, so a hung dependency does not itself hang
+// the probe. Kept short because liveness/readiness probes are called
+// frequently and must fail fast.
+const readyzProbeTimeout = 2 * time.Second
 
 // apiVersion is returned by GET /health. Hardcoded for now — bump on each release.
 const apiVersion = "0.1.0"
@@ -57,6 +65,35 @@ func NewRouter(
 	// endpoint; liveness probes should stay cheap.
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, dto.HealthResponse{Status: "ok", Version: apiVersion})
+	})
+
+	// /readyz is the readiness probe. It pings Postgres and Redis with a
+	// short timeout and returns 200 {status:"ok"} when every dependency is
+	// reachable, or 503 {status:"degraded", detail:<concise error>} the
+	// moment any one of them fails. The probe never blocks longer than
+	// readyzProbeTimeout so a hung downstream cannot wedge the endpoint.
+	r.GET("/readyz", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), readyzProbeTimeout)
+		defer cancel()
+		if dbPool != nil {
+			if err := dbPool.Ping(ctx); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"status": "degraded",
+					"detail": "postgres: " + err.Error(),
+				})
+				return
+			}
+		}
+		if redisClient != nil {
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"status": "degraded",
+					"detail": "redis: " + err.Error(),
+				})
+				return
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	// All API routes require authentication.
