@@ -9,6 +9,7 @@ import (
 
 	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
+	"ark/internal/httpx"
 	"ark/internal/modules/user"
 	"ark/internal/types"
 )
@@ -40,7 +41,7 @@ type updateUserNameReq struct {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req createUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	u, err := h.svc.Create(c.Request.Context(), user.CreateCommand{
@@ -60,7 +61,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 func (h *UserHandler) GetMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	u, err := h.svc.GetByID(c.Request.Context(), types.ID(uid))
@@ -75,12 +76,12 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 func (h *UserHandler) UpdateMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req updateUserNameReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := h.svc.UpdateName(c.Request.Context(), types.ID(uid), req.Name); err != nil {
@@ -94,7 +95,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 func (h *UserHandler) DeleteMe(c *gin.Context) {
 	uid, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || uid == "" {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	if err := h.svc.Delete(c.Request.Context(), types.ID(uid)); err != nil {
@@ -122,10 +123,10 @@ func userToDTO(u *user.User) dto.UserResponse {
 func writeUserError(c *gin.Context, err error) {
 	switch err {
 	case user.ErrBadRequest:
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 	case user.ErrNotFound:
-		RespondError(c, http.StatusNotFound, err.Error())
+		httpx.RespondError(c, http.StatusNotFound, err.Error())
 	default:
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ark/internal/http/dto"
+	"ark/internal/httpx"
 )
 
 // Handler holds the driver HTTP handlers.
@@ -38,7 +39,7 @@ type createReq struct {
 func (h *Handler) Create(c *gin.Context) {
 	var req createReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -71,7 +72,7 @@ type updateStatusResponse struct {
 func (h *Handler) UpdateStatus(c *gin.Context) {
 	var req updateStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -86,24 +87,17 @@ func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
 }
 
-// RespondError writes the canonical {"error": msg} payload. Mirrors
-// ark/internal/http.RespondError to keep the wire shape consistent across
-// packages without introducing an import cycle.
-func RespondError(c *gin.Context, status int, msg string) {
-	c.JSON(status, gin.H{"error": msg})
-}
-
 func writeDriverError(c *gin.Context, err error) {
 	switch err {
 	case ErrForbidden:
-		RespondError(c, http.StatusUnauthorized, "authentication required")
+		httpx.RespondError(c, http.StatusUnauthorized, "authentication required")
 	case ErrBadRequest:
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 	case ErrNotFound:
-		RespondError(c, http.StatusNotFound, err.Error())
+		httpx.RespondError(c, http.StatusNotFound, err.Error())
 	case ErrConflict:
-		RespondError(c, http.StatusConflict, err.Error())
+		httpx.RespondError(c, http.StatusConflict, err.Error())
 	default:
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }

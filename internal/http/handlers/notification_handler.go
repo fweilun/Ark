@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ark/internal/http/middleware"
+	"ark/internal/httpx"
 	"ark/internal/modules/notification"
 	"ark/internal/types"
 )
@@ -38,13 +39,13 @@ type ensureDeviceResponse struct {
 func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req ensureDeviceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -52,12 +53,12 @@ func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 	req.Platform = strings.TrimSpace(req.Platform)
 
 	if req.FCMToken == "" || req.Platform == "" {
-		RespondError(c, http.StatusBadRequest, "missing fcm_token or platform")
+		httpx.RespondError(c, http.StatusBadRequest, "missing fcm_token or platform")
 		return
 	}
 
 	if err := h.svc.EnsureDevice(c.Request.Context(), types.ID(userID), req.FCMToken, req.Platform, req.DeviceID); err != nil {
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -66,5 +67,5 @@ func (h *NotificationHandler) EnsureDevice(c *gin.Context) {
 
 // SendNotification handles POST /api/notifications/send (staff only — TODO).
 func (h *NotificationHandler) SendNotification(c *gin.Context) {
-	RespondError(c, http.StatusNotImplemented, "not implemented")
+	httpx.RespondError(c, http.StatusNotImplemented, "not implemented")
 }

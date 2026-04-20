@@ -8,6 +8,7 @@ import (
 
 	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
+	"ark/internal/httpx"
 	"ark/internal/modules/rideassistant"
 )
 
@@ -36,13 +37,13 @@ type rideAssistantReq struct {
 func (h *RideAssistantHandler) HandleMessage(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok || userID == "" {
-		RespondError(c, http.StatusUnauthorized, "authentication required")
+		httpx.RespondError(c, http.StatusUnauthorized, "authentication required")
 		return
 	}
 
 	var req rideAssistantReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *RideAssistantHandler) HandleMessage(c *gin.Context) {
 		ContextInfo: req.ContextInfo,
 	})
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 		return
 	}
 

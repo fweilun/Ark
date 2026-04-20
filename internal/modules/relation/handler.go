@@ -21,6 +21,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"ark/internal/httpx"
 )
 
 // Handler holds the relation HTTP handlers.
@@ -48,12 +50,12 @@ type sendRequestByPhoneReq struct {
 func (h *Handler) SendRequest(c *gin.Context) {
 	from, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req sendRequestReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := h.svc.Request(c.Request.Context(), from, UserID(req.ToUserID)); err != nil {
@@ -67,12 +69,12 @@ func (h *Handler) SendRequest(c *gin.Context) {
 func (h *Handler) SendRequestByPhone(c *gin.Context) {
 	from, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req sendRequestByPhoneReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := h.svc.RequestByTelephone(c.Request.Context(), from, req.Telephone); err != nil {
@@ -86,7 +88,7 @@ func (h *Handler) SendRequestByPhone(c *gin.Context) {
 func (h *Handler) SearchUsers(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {
-		RespondError(c, http.StatusBadRequest, "missing query parameter q")
+		httpx.RespondError(c, http.StatusBadRequest, "missing query parameter q")
 		return
 	}
 	users, err := h.svc.SearchUsers(c.Request.Context(), q)
@@ -101,7 +103,7 @@ func (h *Handler) SearchUsers(c *gin.Context) {
 func (h *Handler) ListReceived(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	reqs, err := h.svc.ListRequested(c.Request.Context(), uid)
@@ -116,7 +118,7 @@ func (h *Handler) ListReceived(c *gin.Context) {
 func (h *Handler) ListSent(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	reqs, err := h.svc.ListSentRequests(c.Request.Context(), uid)
@@ -131,12 +133,12 @@ func (h *Handler) ListSent(c *gin.Context) {
 func (h *Handler) CancelRequest(c *gin.Context) {
 	from, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	to := UserID(c.Param("friend_id"))
 	if to == "" {
-		RespondError(c, http.StatusBadRequest, "missing friend_id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
 	}
 	if err := h.svc.CancelRequest(c.Request.Context(), from, to); err != nil {
@@ -150,12 +152,12 @@ func (h *Handler) CancelRequest(c *gin.Context) {
 func (h *Handler) AcceptRequest(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	friendID := UserID(c.Param("friend_id"))
 	if friendID == "" {
-		RespondError(c, http.StatusBadRequest, "missing friend_id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
 	}
 	if err := h.svc.AcceptRequest(c.Request.Context(), uid, friendID); err != nil {
@@ -169,12 +171,12 @@ func (h *Handler) AcceptRequest(c *gin.Context) {
 func (h *Handler) RejectRequest(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	friendID := UserID(c.Param("friend_id"))
 	if friendID == "" {
-		RespondError(c, http.StatusBadRequest, "missing friend_id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
 	}
 	if err := h.svc.RejectRequest(c.Request.Context(), uid, friendID); err != nil {
@@ -188,7 +190,7 @@ func (h *Handler) RejectRequest(c *gin.Context) {
 func (h *Handler) ListFriends(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	friends, err := h.svc.ListFriend(c.Request.Context(), uid)
@@ -203,12 +205,12 @@ func (h *Handler) ListFriends(c *gin.Context) {
 func (h *Handler) RemoveFriend(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	friendID := UserID(c.Param("friend_id"))
 	if friendID == "" {
-		RespondError(c, http.StatusBadRequest, "missing friend_id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
 	}
 	if err := h.svc.RemoveFriend(c.Request.Context(), uid, friendID); err != nil {
@@ -223,12 +225,12 @@ func (h *Handler) RemoveFriend(c *gin.Context) {
 func (h *Handler) IsFriend(c *gin.Context) {
 	uid, ok := userIDFromCtx(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	friendID := UserID(c.Param("friend_id"))
 	if friendID == "" {
-		RespondError(c, http.StatusBadRequest, "missing friend_id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
 	}
 	result, err := h.svc.IsFriend(c.Request.Context(), uid, friendID)
@@ -243,24 +245,17 @@ func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
 }
 
-// RespondError writes the canonical {"error": msg} payload. Mirrors
-// ark/internal/http.RespondError to keep the wire shape consistent across
-// packages without introducing an import cycle.
-func RespondError(c *gin.Context, status int, msg string) {
-	c.JSON(status, gin.H{"error": msg})
-}
-
 func writeRelationError(c *gin.Context, err error) {
 	switch err {
 	case ErrBadRequest:
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 	case ErrNotFound:
-		RespondError(c, http.StatusNotFound, err.Error())
+		httpx.RespondError(c, http.StatusNotFound, err.Error())
 	case ErrConflict:
-		RespondError(c, http.StatusConflict, err.Error())
+		httpx.RespondError(c, http.StatusConflict, err.Error())
 	case ErrForbidden:
-		RespondError(c, http.StatusForbidden, err.Error())
+		httpx.RespondError(c, http.StatusForbidden, err.Error())
 	default:
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }

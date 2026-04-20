@@ -10,6 +10,7 @@ import (
 
 	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
+	"ark/internal/httpx"
 	"ark/internal/modules/order"
 	"ark/internal/types"
 )
@@ -33,12 +34,12 @@ type createOrderReq struct {
 func (h *OrderHandler) Create(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req createOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	id, err := h.order.Create(c.Request.Context(), order.CreateCommand{
@@ -60,11 +61,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 func (h *OrderHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	o, err := h.order.Get(c.Request.Context(), types.ID(id))
@@ -81,11 +82,11 @@ func (h *OrderHandler) Get(c *gin.Context) {
 func (h *OrderHandler) Status(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	o, err := h.order.Get(c.Request.Context(), types.ID(id))
@@ -107,11 +108,11 @@ func (h *OrderHandler) Status(c *gin.Context) {
 func (h *OrderHandler) Cancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 
@@ -143,16 +144,16 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 func (h *OrderHandler) Match(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Match(c.Request.Context(), order.MatchCommand{
@@ -169,16 +170,16 @@ func (h *OrderHandler) Match(c *gin.Context) {
 func (h *OrderHandler) Accept(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Accept(c.Request.Context(), order.AcceptCommand{
@@ -195,16 +196,16 @@ func (h *OrderHandler) Accept(c *gin.Context) {
 func (h *OrderHandler) Deny(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.Deny(c.Request.Context(), order.DenyCommand{
@@ -222,11 +223,11 @@ func (h *OrderHandler) Deny(c *gin.Context) {
 func (h *OrderHandler) Arrive(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Arrive(c.Request.Context(), order.ArriveCommand{OrderID: types.ID(id)})
@@ -240,11 +241,11 @@ func (h *OrderHandler) Arrive(c *gin.Context) {
 func (h *OrderHandler) Meet(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Meet(c.Request.Context(), order.MeetCommand{OrderID: types.ID(id)})
@@ -258,11 +259,11 @@ func (h *OrderHandler) Meet(c *gin.Context) {
 func (h *OrderHandler) Complete(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Complete(c.Request.Context(), order.CompleteCommand{OrderID: types.ID(id)})
@@ -277,11 +278,11 @@ func (h *OrderHandler) Complete(c *gin.Context) {
 func (h *OrderHandler) Pay(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	err := h.order.Pay(c.Request.Context(), order.PayCommand{OrderID: types.ID(id)})
@@ -308,17 +309,17 @@ type createScheduledReq struct {
 func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req createScheduledReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid scheduled_at; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid scheduled_at; expected RFC3339")
 		return
 	}
 	id, err := h.order.CreateScheduled(c.Request.Context(), order.CreateScheduledCommand{
@@ -350,7 +351,7 @@ type scheduledOrdersResponse struct {
 func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 	passengerID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	orders, err := h.order.ListScheduledByPassenger(c.Request.Context(), types.ID(passengerID))
@@ -366,21 +367,21 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
 	if fromStr == "" || toStr == "" {
-		RespondError(c, http.StatusBadRequest, "missing from or to")
+		httpx.RespondError(c, http.StatusBadRequest, "missing from or to")
 		return
 	}
 	from, err := time.Parse(time.RFC3339, fromStr)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
 		return
 	}
 	to, err := time.Parse(time.RFC3339, toStr)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
 		return
 	}
 	if !from.Before(to) {
-		RespondError(c, http.StatusBadRequest, "from must be before to")
+		httpx.RespondError(c, http.StatusBadRequest, "from must be before to")
 		return
 	}
 	orders, err := h.order.ListAvailableScheduled(c.Request.Context(), from, to)
@@ -395,16 +396,16 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 func (h *OrderHandler) Claim(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	err := h.order.ClaimScheduled(c.Request.Context(), order.ClaimScheduledCommand{
@@ -426,21 +427,21 @@ type driverCancelReq struct {
 func (h *OrderHandler) DriverCancel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		RespondError(c, http.StatusBadRequest, "missing order id")
+		httpx.RespondError(c, http.StatusBadRequest, "missing order id")
 		return
 	}
 	if !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid order id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid order id")
 		return
 	}
 	driverID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req driverCancelReq
 	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	err := h.order.CancelScheduledByDriver(c.Request.Context(), order.DriverCancelScheduledCommand{

@@ -9,6 +9,7 @@ import (
 
 	"ark/internal/http/dto"
 	"ark/internal/http/middleware"
+	"ark/internal/httpx"
 	"ark/internal/modules/calendar"
 	"ark/internal/modules/order"
 	"ark/internal/types"
@@ -59,17 +60,17 @@ type schedulesListResponse struct {
 func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 	var req createEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	from, err := time.Parse(time.RFC3339, req.From)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
 		return
 	}
 	to, err := time.Parse(time.RFC3339, req.To)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
 		return
 	}
 	id, err := h.svc.CreateEvent(c.Request.Context(), calendar.CreateEventCommand{
@@ -89,22 +90,22 @@ func (h *CalendarHandler) CreateEvent(c *gin.Context) {
 func (h *CalendarHandler) EditEvent(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" || !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid event id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid event id")
 		return
 	}
 	var req editEventReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	from, err := time.Parse(time.RFC3339, req.From)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid from; expected RFC3339")
 		return
 	}
 	to, err := time.Parse(time.RFC3339, req.To)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid to; expected RFC3339")
 		return
 	}
 	if err := h.svc.EditEvent(c.Request.Context(), calendar.EditEventCommand{
@@ -124,7 +125,7 @@ func (h *CalendarHandler) EditEvent(c *gin.Context) {
 func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" || !isValidID(id) {
-		RespondError(c, http.StatusBadRequest, "invalid event id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid event id")
 		return
 	}
 	if err := h.svc.DeleteEvent(c.Request.Context(), types.ID(id)); err != nil {
@@ -139,16 +140,16 @@ func (h *CalendarHandler) DeleteEvent(c *gin.Context) {
 func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req createAndTieOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !isValidID(req.EventID) {
-		RespondError(c, http.StatusBadRequest, "invalid event_id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid event_id")
 		return
 	}
 	sc, err := h.svc.CreateAndTieOrder(c.Request.Context(), calendar.CreateAndTieOrderCommand{
@@ -171,12 +172,12 @@ func (h *CalendarHandler) CreateAndTieOrder(c *gin.Context) {
 func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 	eventID := c.Param("event_id")
 	if eventID == "" || !isValidID(eventID) {
-		RespondError(c, http.StatusBadRequest, "invalid event id")
+		httpx.RespondError(c, http.StatusBadRequest, "invalid event id")
 		return
 	}
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	if err := h.svc.UntieOrder(c.Request.Context(), calendar.UntieOrderCommand{
@@ -194,7 +195,7 @@ func (h *CalendarHandler) UntieOrder(c *gin.Context) {
 func (h *CalendarHandler) ListSchedules(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		RespondError(c, http.StatusUnauthorized, "unauthorized")
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	schedules, err := h.svc.ListSchedulesByUser(c.Request.Context(), types.ID(userID))
@@ -226,12 +227,12 @@ func scheduleToDTO(sc *calendar.Schedule) dto.CalendarScheduleResponse {
 func writeCalendarError(c *gin.Context, err error) {
 	switch err {
 	case calendar.ErrBadRequest, order.ErrBadRequest, order.ErrActiveOrder:
-		RespondError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 	case calendar.ErrNotFound, order.ErrNotFound:
-		RespondError(c, http.StatusNotFound, err.Error())
+		httpx.RespondError(c, http.StatusNotFound, err.Error())
 	case order.ErrInvalidState, order.ErrConflict:
-		RespondError(c, http.StatusConflict, err.Error())
+		httpx.RespondError(c, http.StatusConflict, err.Error())
 	default:
-		RespondError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }
