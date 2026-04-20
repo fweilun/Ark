@@ -340,11 +340,64 @@ func (h *OrderHandler) CreateScheduled(c *gin.Context) {
 	})
 }
 
-// scheduledOrdersResponse wraps a list of orders for passenger/available endpoints.
-// Orders use the existing order.Order shape (not a DTO yet) — see the task
-// review output for the open TODO to build a full OrderSummary DTO.
+// scheduledOrdersResponse wraps a list of scheduled-order summaries for
+// the passenger and available-order endpoints. Each element is a
+// dto.ScheduledOrderSummary (per-field projection of order.Order) instead
+// of the domain struct, so the HTTP layer owns the wire shape and domain
+// renames cannot leak into the API response.
 type scheduledOrdersResponse struct {
-	Orders []*order.Order `json:"orders"`
+	Orders []dto.ScheduledOrderSummary `json:"orders"`
+}
+
+// orderToScheduledSummary projects an *order.Order onto the public
+// ScheduledOrderSummary DTO, preserving every field the underlying model
+// exposes via json tags. Keeping this as an explicit per-field mapper (as
+// opposed to embedding order.Order in the DTO) stops future additions to
+// order.Order from silently appearing in the API response.
+func orderToScheduledSummary(o *order.Order) dto.ScheduledOrderSummary {
+	if o == nil {
+		return dto.ScheduledOrderSummary{}
+	}
+	sum := dto.ScheduledOrderSummary{
+		ID:                 string(o.ID),
+		PassengerID:        string(o.PassengerID),
+		Status:             string(o.Status),
+		StatusVersion:      o.StatusVersion,
+		Pickup:             o.Pickup,
+		Dropoff:            o.Dropoff,
+		RideType:           o.RideType,
+		EstimatedFee:       o.EstimatedFee,
+		ActualFee:          o.ActualFee,
+		CreatedAt:          o.CreatedAt,
+		MatchedAt:          o.MatchedAt,
+		AcceptedAt:         o.AcceptedAt,
+		StartedAt:          o.StartedAt,
+		CompletedAt:        o.CompletedAt,
+		CancelledAt:        o.CancelledAt,
+		CancelReason:       o.CancelReason,
+		OrderType:          o.OrderType,
+		ScheduledAt:        o.ScheduledAt,
+		ScheduleWindowMins: o.ScheduleWindowMins,
+		CancelDeadlineAt:   o.CancelDeadlineAt,
+		IncentiveBonus:     o.IncentiveBonus,
+		AssignedAt:         o.AssignedAt,
+	}
+	if o.DriverID != nil {
+		id := string(*o.DriverID)
+		sum.DriverID = &id
+	}
+	return sum
+}
+
+// orderListToScheduledSummaries maps a slice of domain orders to a slice
+// of summaries (never nil, so the JSON response always serialises to `[]`
+// instead of `null`).
+func orderListToScheduledSummaries(orders []*order.Order) []dto.ScheduledOrderSummary {
+	out := make([]dto.ScheduledOrderSummary, 0, len(orders))
+	for _, o := range orders {
+		out = append(out, orderToScheduledSummary(o))
+	}
+	return out
 }
 
 // ListScheduledByPassenger handles GET /api/orders/scheduled.
@@ -359,7 +412,7 @@ func (h *OrderHandler) ListScheduledByPassenger(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orders})
+	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orderListToScheduledSummaries(orders)})
 }
 
 // ListAvailableScheduled handles GET /api/orders/scheduled/available?from=...&to=...
@@ -389,7 +442,7 @@ func (h *OrderHandler) ListAvailableScheduled(c *gin.Context) {
 		writeOrderError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orders})
+	writeJSON(c, http.StatusOK, scheduledOrdersResponse{Orders: orderListToScheduledSummaries(orders)})
 }
 
 // Claim handles POST /api/orders/:id/claim (driver claims a scheduled order).

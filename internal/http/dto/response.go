@@ -3,6 +3,12 @@
 // documented JSON shape.
 package dto
 
+import (
+	"time"
+
+	"ark/internal/types"
+)
+
 // OrderResponse is returned by order create/transition endpoints. It carries
 // the minimum client-facing fields describing an order mutation result.
 //
@@ -88,4 +94,43 @@ type RideAssistantResponse struct {
 type HealthResponse struct {
 	Status  string `json:"status"`
 	Version string `json:"version"`
+}
+
+// ScheduledOrderSummary is the per-row payload used by the list endpoints
+// GET /api/orders/scheduled and GET /api/orders/scheduled/available.
+//
+// The shape deliberately mirrors every json tag on order.Order so existing
+// mobile clients continue to see the same field names and optionality.
+// Passing through a dedicated DTO (rather than returning *order.Order
+// directly) stops the HTTP surface from leaking Go PascalCase and pins the
+// wire shape separately from the domain struct, so internal renames can't
+// accidentally break the API.
+//
+// Monetary fields (EstimatedFee, ActualFee, IncentiveBonus) stay in TWD
+// minor units (cents; 1/100 TWD) to match the rest of the API — see
+// internal/types/money.go for the unit convention.
+type ScheduledOrderSummary struct {
+	ID                 string      `json:"id"`
+	PassengerID        string      `json:"passenger_id"`
+	DriverID           *string     `json:"driver_id,omitempty"`
+	Status             string      `json:"status"`
+	StatusVersion      int         `json:"status_version"`
+	Pickup             types.Point `json:"pickup"`
+	Dropoff            types.Point `json:"dropoff"`
+	RideType           string      `json:"ride_type"`
+	EstimatedFee       types.Money `json:"estimated_fee"`
+	ActualFee          *types.Money `json:"actual_fee,omitempty"`
+	CreatedAt          time.Time   `json:"created_at"`
+	MatchedAt          *time.Time  `json:"matched_at,omitempty"`
+	AcceptedAt         *time.Time  `json:"accepted_at,omitempty"`
+	StartedAt          *time.Time  `json:"started_at,omitempty"`
+	CompletedAt        *time.Time  `json:"completed_at,omitempty"`
+	CancelledAt        *time.Time  `json:"cancelled_at,omitempty"`
+	CancelReason       *string     `json:"cancel_reason,omitempty"`
+	OrderType          string      `json:"order_type,omitempty"`
+	ScheduledAt        *time.Time  `json:"scheduled_at,omitempty"`
+	ScheduleWindowMins *int        `json:"schedule_window_mins,omitempty"`
+	CancelDeadlineAt   *time.Time  `json:"cancel_deadline_at,omitempty"`
+	IncentiveBonus     int64       `json:"incentive_bonus"`
+	AssignedAt         *time.Time  `json:"assigned_at,omitempty"`
 }
