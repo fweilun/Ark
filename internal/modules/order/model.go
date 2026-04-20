@@ -32,38 +32,38 @@ const (
 // )
 
 type Order struct {
-	ID            types.ID
-	PassengerID   types.ID
-	DriverID      *types.ID
-	Status        Status
-	StatusVersion int
-	Pickup        types.Point
-	Dropoff       types.Point
-	RideType      string
+	ID            types.ID    `json:"id"`
+	PassengerID   types.ID    `json:"passenger_id"`
+	DriverID      *types.ID   `json:"driver_id,omitempty"`
+	Status        Status      `json:"status"`
+	StatusVersion int         `json:"status_version"`
+	Pickup        types.Point `json:"pickup"`
+	Dropoff       types.Point `json:"dropoff"`
+	RideType      string      `json:"ride_type"`
 	// EstimatedFee is the pre-trip fare quote in TWD minor units
 	// (cents; 1/100 TWD). See internal/types/money.go for the unit convention.
-	EstimatedFee types.Money
+	EstimatedFee types.Money `json:"estimated_fee"`
 	// ActualFee is the post-trip charged fare in TWD minor units. Nil until
 	// the trip completes. See internal/types/money.go for the unit convention.
-	ActualFee *types.Money
-	CreatedAt     time.Time
-	MatchedAt     *time.Time
-	AcceptedAt    *time.Time
-	StartedAt     *time.Time
-	CompletedAt   *time.Time
-	CancelledAt   *time.Time
-	CancelReason  *string
+	ActualFee    *types.Money `json:"actual_fee,omitempty"`
+	CreatedAt    time.Time    `json:"created_at"`
+	MatchedAt    *time.Time   `json:"matched_at,omitempty"`
+	AcceptedAt   *time.Time   `json:"accepted_at,omitempty"`
+	StartedAt    *time.Time   `json:"started_at,omitempty"`
+	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
+	CancelledAt  *time.Time   `json:"cancelled_at,omitempty"`
+	CancelReason *string      `json:"cancel_reason,omitempty"`
 	// Scheduled-order fields (zero/nil for instant orders).
-	OrderType          string
-	ScheduledAt        *time.Time
-	ScheduleWindowMins *int
-	CancelDeadlineAt   *time.Time
+	OrderType          string     `json:"order_type,omitempty"`
+	ScheduledAt        *time.Time `json:"scheduled_at,omitempty"`
+	ScheduleWindowMins *int       `json:"schedule_window_mins,omitempty"`
+	CancelDeadlineAt   *time.Time `json:"cancel_deadline_at,omitempty"`
 	// IncentiveBonus is an accumulated driver-incentive kicker added when
 	// scheduled orders approach their pickup window. Value is in TWD minor
 	// units (cents; 1/100 TWD). See internal/types/money.go.
-	IncentiveBonus int64
-	AssignedAt     *time.Time
-	history            []Event
+	IncentiveBonus int64      `json:"incentive_bonus"`
+	AssignedAt     *time.Time `json:"assigned_at,omitempty"`
+	history        []Event    `json:"-"`
 }
 
 type Event struct {
