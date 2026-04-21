@@ -11,6 +11,7 @@ import (
 	"time"
 
 	firebase "firebase.google.com/go/v4"
+	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
 
 	"ark/docs"
@@ -46,6 +47,14 @@ import (
 // @name                       Authorization
 // @description                Firebase ID Token, formatted as `Bearer <token>`.
 func main() {
+	// Auto-load .env so `go run ./cmd/ark-api` just works locally.
+	// A missing .env is normal in production (real env vars come from the
+	// deploy system), so we swallow os.IsNotExist silently. Any other error
+	// is surfaced as a warning but does NOT abort startup.
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: failed to load .env: %v", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)

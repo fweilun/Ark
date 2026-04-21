@@ -37,7 +37,7 @@
    go run ./cmd/ark-api
    ```
 
-   順利的話會看到 `server listening on :8080`。
+   server 啟動時會自動載入專案根目錄的 `.env`，不用再 `source .env`，直接 `go run` 就能吃到 `GEMINI_API_KEY` 等設定。順利的話會看到 `server listening on :8080`。
 
 5. 開 Swagger UI 看 API 文件：
 
