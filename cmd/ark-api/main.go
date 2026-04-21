@@ -13,6 +13,7 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/option"
 
+	"ark/docs"
 	"ark/internal/config"
 	httptransport "ark/internal/http"
 	"ark/internal/http/middleware"
@@ -48,6 +49,15 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Swagger host is read at request time from docs.SwaggerInfo.Host. Default
+	// to localhost:8080 for local dev; PUBLIC_HOST should be set in deployed
+	// environments (e.g. "api.zooark.example.com").
+	if publicHost := os.Getenv("PUBLIC_HOST"); publicHost != "" {
+		docs.SwaggerInfo.Host = publicHost
+	} else {
+		docs.SwaggerInfo.Host = "localhost:8080"
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

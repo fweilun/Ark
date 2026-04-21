@@ -9,7 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "ark/docs" // swagger generated docs — side-effect import registers SwaggerInfo
 	"ark/internal/http/dto"
 	"ark/internal/http/handlers"
 	"ark/internal/http/middleware"
@@ -71,6 +74,11 @@ func NewRouter(
 	// moment any one of them fails. The probe never blocks longer than
 	// readyzProbeTimeout so a hung downstream cannot wedge the endpoint.
 	r.GET("/readyz", readyzHandler(dbPool, redisClient))
+
+	// Swagger UI — public, serves the generated OpenAPI docs under /swagger/*.
+	// The docs package is registered via the side-effect import above; Host is
+	// overridden at startup from PUBLIC_HOST (see cmd/ark-api/main.go).
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// All API routes require authentication.
 	api := r.Group("/")
