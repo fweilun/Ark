@@ -4,6 +4,8 @@
 !.github/workflows/
 !.github/workflows/*.yml
 zoozoo-v1-firebase-adminsdk-fbsvc-2adb5592ce.json
+*credentials*.json
+firebase-*.json
 *.md
 !README_DEV.md
 .claude
