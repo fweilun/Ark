@@ -65,8 +65,8 @@ ipconfig getifaddr en0   # Wi-Fi 介面；有線網路通常是 en1
 
 ## 測試需要 Auth 的 API
 
-除了 `POST /api/users`、`GET /health`、`GET /readyz`、`GET /swagger/*` 之外，所有 endpoint 都需要帶
-`Authorization: Bearer <Firebase ID Token>`。取得 token 的兩種方式：
+除了 `GET /health`、`GET /readyz`、`GET /swagger/*` 之外，所有 endpoint 都需要帶
+`Authorization: Bearer <Firebase ID Token>`。特別注意 `POST /api/users`（建立後端使用者資料列）也需要帶 token — handler 會把驗證過的 Firebase UID 當作新使用者的 `user_id`，`GET /api/me` 之後才能查得到。取得 token 的兩種方式：
 
 ### 方式 A：Firebase Console（最簡單，適合臨時手動測試）
 

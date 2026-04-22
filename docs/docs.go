@@ -42,7 +42,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.aiChatReq"
+                            "$ref": "#/definitions/handlers.aiChatReq"
                         }
                     }
                 ],
@@ -50,25 +50,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.AIChatResponse"
+                            "$ref": "#/definitions/dto.AIChatResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -99,7 +99,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.rideAssistantReq"
+                            "$ref": "#/definitions/handlers.rideAssistantReq"
                         }
                     }
                 ],
@@ -107,25 +107,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.RideAssistantResponse"
+                            "$ref": "#/definitions/dto.RideAssistantResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -156,7 +156,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.createEventReq"
+                            "$ref": "#/definitions/handlers.createEventReq"
                         }
                     }
                 ],
@@ -164,19 +164,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.CalendarEventResponse"
+                            "$ref": "#/definitions/dto.CalendarEventResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -214,7 +214,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.editEventReq"
+                            "$ref": "#/definitions/handlers.editEventReq"
                         }
                     }
                 ],
@@ -222,25 +222,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.CalendarEventResponse"
+                            "$ref": "#/definitions/dto.CalendarEventResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -272,19 +272,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -309,13 +309,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.schedulesListResponse"
+                            "$ref": "#/definitions/handlers.schedulesListResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -344,7 +344,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.createAndTieOrderReq"
+                            "$ref": "#/definitions/handlers.createAndTieOrderReq"
                         }
                     }
                 ],
@@ -352,31 +352,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.CalendarScheduleResponse"
+                            "$ref": "#/definitions/dto.CalendarScheduleResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -410,19 +410,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -453,7 +453,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_modules_driver.createReq"
+                            "$ref": "#/definitions/driver.createReq"
                         }
                     }
                 ],
@@ -461,25 +461,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.DriverResponse"
+                            "$ref": "#/definitions/dto.DriverResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -510,7 +510,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_modules_driver.updateStatusReq"
+                            "$ref": "#/definitions/driver.updateStatusReq"
                         }
                     }
                 ],
@@ -518,25 +518,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_modules_driver.updateStatusResponse"
+                            "$ref": "#/definitions/driver.updateStatusResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -561,19 +561,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.UserResponse"
+                            "$ref": "#/definitions/dto.UserResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -596,13 +596,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -628,7 +628,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.updateUserNameReq"
+                            "$ref": "#/definitions/handlers.updateUserNameReq"
                         }
                     }
                 ],
@@ -639,19 +639,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -682,7 +682,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.ensureDeviceReq"
+                            "$ref": "#/definitions/handlers.ensureDeviceReq"
                         }
                     }
                 ],
@@ -690,25 +690,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.ensureDeviceResponse"
+                            "$ref": "#/definitions/handlers.ensureDeviceResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -739,7 +739,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.createOrderReq"
+                            "$ref": "#/definitions/handlers.createOrderReq"
                         }
                     }
                 ],
@@ -747,25 +747,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -790,13 +790,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.scheduledOrdersResponse"
+                            "$ref": "#/definitions/handlers.scheduledOrdersResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -825,7 +825,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.createScheduledReq"
+                            "$ref": "#/definitions/handlers.createScheduledReq"
                         }
                     }
                 ],
@@ -833,19 +833,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -886,13 +886,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.scheduledOrdersResponse"
+                            "$ref": "#/definitions/handlers.scheduledOrdersResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -926,25 +926,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -978,19 +978,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1024,25 +1024,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1076,25 +1076,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1128,19 +1128,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1174,25 +1174,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1229,7 +1229,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.driverCancelReq"
+                            "$ref": "#/definitions/handlers.driverCancelReq"
                         }
                     }
                 ],
@@ -1237,25 +1237,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1289,25 +1289,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1341,19 +1341,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1387,19 +1387,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderResponse"
+                            "$ref": "#/definitions/dto.OrderResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1433,19 +1433,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.OrderStatusResponse"
+                            "$ref": "#/definitions/dto.OrderStatusResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1473,7 +1473,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1507,19 +1507,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1556,13 +1556,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1590,7 +1590,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_modules_relation.sendRequestReq"
+                            "$ref": "#/definitions/relation.sendRequestReq"
                         }
                     }
                 ],
@@ -1601,25 +1601,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1647,7 +1647,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_modules_relation.sendRequestByPhoneReq"
+                            "$ref": "#/definitions/relation.sendRequestByPhoneReq"
                         }
                     }
                 ],
@@ -1658,25 +1658,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1704,7 +1704,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1732,7 +1732,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1766,19 +1766,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1812,19 +1812,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1858,19 +1858,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1907,13 +1907,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1921,7 +1921,12 @@ const docTemplate = `{
         },
         "/api/users": {
             "post": {
-                "description": "Creates a user row after Firebase signup. This endpoint is public (no auth required) — the server trusts the client-supplied email/phone until a follow-up PATCH.",
+                "security": [
+                    {
+                        "FirebaseAuth": []
+                    }
+                ],
+                "description": "Creates the backend user row for a freshly signed-up Firebase account. The caller MUST send a valid Firebase ID Token — the server uses the verified UID from that token as the user_id, so subsequent calls (e.g. GET /api/me) resolve to the same row.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1939,7 +1944,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_http_handlers.createUserReq"
+                            "$ref": "#/definitions/handlers.createUserReq"
                         }
                     }
                 ],
@@ -1947,19 +1952,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.UserResponse"
+                            "$ref": "#/definitions/dto.UserResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_httpx.ErrorBody"
+                            "$ref": "#/definitions/httpx.ErrorBody"
                         }
                     }
                 }
@@ -1979,7 +1990,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ark_internal_http_dto.HealthResponse"
+                            "$ref": "#/definitions/dto.HealthResponse"
                         }
                     }
                 }
@@ -1999,13 +2010,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_http.readyzOKResponse"
+                            "$ref": "#/definitions/http.readyzOKResponse"
                         }
                     },
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "$ref": "#/definitions/internal_http.readyzDetailResponse"
+                            "$ref": "#/definitions/http.readyzDetailResponse"
                         }
                     }
                 }
@@ -2013,7 +2024,42 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "ark_internal_http_dto.AIChatResponse": {
+        "driver.createReq": {
+            "type": "object",
+            "required": [
+                "license_number"
+            ],
+            "properties": {
+                "license_number": {
+                    "type": "string"
+                }
+            }
+        },
+        "driver.updateStatusReq": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "available",
+                        "on_trip",
+                        "offline"
+                    ]
+                }
+            }
+        },
+        "driver.updateStatusResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AIChatResponse": {
             "type": "object",
             "properties": {
                 "reply": {
@@ -2021,7 +2067,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.CalendarEventResponse": {
+        "dto.CalendarEventResponse": {
             "type": "object",
             "properties": {
                 "event_id": {
@@ -2029,7 +2075,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.CalendarScheduleResponse": {
+        "dto.CalendarScheduleResponse": {
             "type": "object",
             "properties": {
                 "event_id": {
@@ -2043,7 +2089,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.DriverResponse": {
+        "dto.DriverResponse": {
             "type": "object",
             "properties": {
                 "driver_id": {
@@ -2063,7 +2109,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.HealthResponse": {
+        "dto.HealthResponse": {
             "type": "object",
             "properties": {
                 "status": {
@@ -2074,7 +2120,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.OrderResponse": {
+        "dto.OrderResponse": {
             "type": "object",
             "properties": {
                 "late_cancel": {
@@ -2088,7 +2134,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.OrderStatusResponse": {
+        "dto.OrderStatusResponse": {
             "type": "object",
             "properties": {
                 "driver_id": {
@@ -2105,7 +2151,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.RideAssistantBooking": {
+        "dto.RideAssistantBooking": {
             "type": "object",
             "properties": {
                 "order_id": {
@@ -2116,24 +2162,24 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.RideAssistantResponse": {
+        "dto.RideAssistantResponse": {
             "type": "object",
             "properties": {
                 "booking": {
-                    "$ref": "#/definitions/ark_internal_http_dto.RideAssistantBooking"
+                    "$ref": "#/definitions/dto.RideAssistantBooking"
                 },
                 "reply": {
                     "type": "string"
                 },
                 "session": {
-                    "$ref": "#/definitions/ark_internal_http_dto.RideAssistantSession"
+                    "$ref": "#/definitions/dto.RideAssistantSession"
                 },
                 "status": {
                     "type": "string"
                 }
             }
         },
-        "ark_internal_http_dto.RideAssistantSession": {
+        "dto.RideAssistantSession": {
             "type": "object",
             "properties": {
                 "id": {
@@ -2156,14 +2202,14 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.ScheduledOrderSummary": {
+        "dto.ScheduledOrderSummary": {
             "type": "object",
             "properties": {
                 "accepted_at": {
                     "type": "string"
                 },
                 "actual_fee": {
-                    "$ref": "#/definitions/ark_internal_types.Money"
+                    "$ref": "#/definitions/types.Money"
                 },
                 "assigned_at": {
                     "type": "string"
@@ -2187,10 +2233,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "dropoff": {
-                    "$ref": "#/definitions/ark_internal_types.Point"
+                    "$ref": "#/definitions/types.Point"
                 },
                 "estimated_fee": {
-                    "$ref": "#/definitions/ark_internal_types.Money"
+                    "$ref": "#/definitions/types.Money"
                 },
                 "id": {
                     "type": "string"
@@ -2208,7 +2254,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "pickup": {
-                    "$ref": "#/definitions/ark_internal_types.Point"
+                    "$ref": "#/definitions/types.Point"
                 },
                 "ride_type": {
                     "type": "string"
@@ -2230,7 +2276,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_http_dto.UserResponse": {
+        "dto.UserResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2253,61 +2299,7 @@ const docTemplate = `{
                 }
             }
         },
-        "ark_internal_httpx.ErrorBody": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "ark_internal_types.Money": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "description": "Amount is measured in TWD minor units (cents, i.e. 1/100 TWD).\nMust be non-negative. Use int64 to avoid floating-point drift.",
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "currency": {
-                    "description": "Currency is the ISO-4217 currency code. The project is TWD-only for now,\nbut the field is kept so non-TWD support can be added without a schema change.",
-                    "type": "string"
-                }
-            }
-        },
-        "ark_internal_types.Point": {
-            "type": "object",
-            "properties": {
-                "lat": {
-                    "type": "number",
-                    "format": "float64"
-                },
-                "lng": {
-                    "type": "number",
-                    "format": "float64"
-                }
-            }
-        },
-        "internal_http.readyzDetailResponse": {
-            "type": "object",
-            "properties": {
-                "detail": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_http.readyzOKResponse": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_http_handlers.aiChatReq": {
+        "handlers.aiChatReq": {
             "type": "object",
             "required": [
                 "message",
@@ -2322,7 +2314,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.createAndTieOrderReq": {
+        "handlers.createAndTieOrderReq": {
             "type": "object",
             "required": [
                 "event_id",
@@ -2349,7 +2341,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.createEventReq": {
+        "handlers.createEventReq": {
             "type": "object",
             "required": [
                 "from",
@@ -2373,7 +2365,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.createOrderReq": {
+        "handlers.createOrderReq": {
             "type": "object",
             "required": [
                 "ride_type"
@@ -2396,7 +2388,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.createScheduledReq": {
+        "handlers.createScheduledReq": {
             "type": "object",
             "required": [
                 "ride_type",
@@ -2428,7 +2420,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.createUserReq": {
+        "handlers.createUserReq": {
             "type": "object",
             "required": [
                 "email",
@@ -2450,7 +2442,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.driverCancelReq": {
+        "handlers.driverCancelReq": {
             "type": "object",
             "properties": {
                 "reason": {
@@ -2458,7 +2450,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.editEventReq": {
+        "handlers.editEventReq": {
             "type": "object",
             "required": [
                 "from",
@@ -2482,7 +2474,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.ensureDeviceReq": {
+        "handlers.ensureDeviceReq": {
             "type": "object",
             "required": [
                 "fcm_token",
@@ -2505,7 +2497,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.ensureDeviceResponse": {
+        "handlers.ensureDeviceResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -2513,7 +2505,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.rideAssistantReq": {
+        "handlers.rideAssistantReq": {
             "type": "object",
             "required": [
                 "message"
@@ -2530,29 +2522,29 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_http_handlers.scheduledOrdersResponse": {
+        "handlers.scheduledOrdersResponse": {
             "type": "object",
             "properties": {
                 "orders": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/ark_internal_http_dto.ScheduledOrderSummary"
+                        "$ref": "#/definitions/dto.ScheduledOrderSummary"
                     }
                 }
             }
         },
-        "internal_http_handlers.schedulesListResponse": {
+        "handlers.schedulesListResponse": {
             "type": "object",
             "properties": {
                 "schedules": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/ark_internal_http_dto.CalendarScheduleResponse"
+                        "$ref": "#/definitions/dto.CalendarScheduleResponse"
                     }
                 }
             }
         },
-        "internal_http_handlers.updateUserNameReq": {
+        "handlers.updateUserNameReq": {
             "type": "object",
             "required": [
                 "name"
@@ -2563,34 +2555,18 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_modules_driver.createReq": {
+        "http.readyzDetailResponse": {
             "type": "object",
-            "required": [
-                "license_number"
-            ],
             "properties": {
-                "license_number": {
+                "detail": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
         },
-        "internal_modules_driver.updateStatusReq": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "available",
-                        "on_trip",
-                        "offline"
-                    ]
-                }
-            }
-        },
-        "internal_modules_driver.updateStatusResponse": {
+        "http.readyzOKResponse": {
             "type": "object",
             "properties": {
                 "status": {
@@ -2598,7 +2574,15 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_modules_relation.sendRequestByPhoneReq": {
+        "httpx.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "relation.sendRequestByPhoneReq": {
             "type": "object",
             "required": [
                 "telephone"
@@ -2609,7 +2593,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_modules_relation.sendRequestReq": {
+        "relation.sendRequestReq": {
             "type": "object",
             "required": [
                 "to_user_id"
@@ -2617,6 +2601,33 @@ const docTemplate = `{
             "properties": {
                 "to_user_id": {
                     "type": "string"
+                }
+            }
+        },
+        "types.Money": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "Amount is measured in TWD minor units (cents, i.e. 1/100 TWD).\nMust be non-negative. Use int64 to avoid floating-point drift.",
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "currency": {
+                    "description": "Currency is the ISO-4217 currency code. The project is TWD-only for now,\nbut the field is kept so non-TWD support can be added without a schema change.",
+                    "type": "string"
+                }
+            }
+        },
+        "types.Point": {
+            "type": "object",
+            "properties": {
+                "lat": {
+                    "type": "number",
+                    "format": "float64"
+                },
+                "lng": {
+                    "type": "number",
+                    "format": "float64"
                 }
             }
         }

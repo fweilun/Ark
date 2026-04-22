@@ -126,7 +126,11 @@ func NewRouter(
 
 	// users
 	userHandler := handlers.NewUserHandler(userService)
-	r.POST("/api/users", userHandler.CreateUser)
+	// POST /api/users is auth-required: the handler reads the verified Firebase
+	// UID from the token and uses it as the new user's primary key, so calls
+	// that land here without a valid token could not produce a row that
+	// GET /api/me (also keyed by UID) would later find.
+	api.POST("/api/users", userHandler.CreateUser)
 	api.GET("/api/me", userHandler.GetMe)
 	api.PATCH("/api/me", userHandler.UpdateMe)
 	api.DELETE("/api/me", userHandler.DeleteMe)

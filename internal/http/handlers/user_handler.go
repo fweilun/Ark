@@ -40,22 +40,30 @@ type updateUserNameReq struct {
 // CreateUser handles POST /api/users.
 //
 // @Summary      Create user profile
-// @Description  Creates a user row after Firebase signup. This endpoint is public (no auth required) — the server trusts the client-supplied email/phone until a follow-up PATCH.
+// @Description  Creates the backend user row for a freshly signed-up Firebase account. The caller MUST send a valid Firebase ID Token — the server uses the verified UID from that token as the user_id, so subsequent calls (e.g. GET /api/me) resolve to the same row.
 // @Tags         Auth & User
 // @Accept       json
 // @Produce      json
+// @Security     FirebaseAuth
 // @Param        body  body      createUserReq    true  "New user payload"
 // @Success      201   {object}  dto.UserResponse
 // @Failure      400   {object}  httpx.ErrorBody
+// @Failure      401   {object}  httpx.ErrorBody
 // @Failure      500   {object}  httpx.ErrorBody
 // @Router       /api/users [post]
 func (h *UserHandler) CreateUser(c *gin.Context) {
+	uid, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok || uid == "" {
+		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req createUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	u, err := h.svc.Create(c.Request.Context(), user.CreateCommand{
+		UserID:   types.ID(uid),
 		Name:     req.Name,
 		Email:    req.Email,
 		Phone:    req.Phone,

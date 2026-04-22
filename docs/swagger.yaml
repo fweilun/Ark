@@ -1,16 +1,39 @@
 basePath: /
 definitions:
-  ark_internal_http_dto.AIChatResponse:
+  driver.createReq:
+    properties:
+      license_number:
+        type: string
+    required:
+    - license_number
+    type: object
+  driver.updateStatusReq:
+    properties:
+      status:
+        enum:
+        - available
+        - on_trip
+        - offline
+        type: string
+    required:
+    - status
+    type: object
+  driver.updateStatusResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  dto.AIChatResponse:
     properties:
       reply:
         type: string
     type: object
-  ark_internal_http_dto.CalendarEventResponse:
+  dto.CalendarEventResponse:
     properties:
       event_id:
         type: string
     type: object
-  ark_internal_http_dto.CalendarScheduleResponse:
+  dto.CalendarScheduleResponse:
     properties:
       event_id:
         type: string
@@ -19,7 +42,7 @@ definitions:
       uid:
         type: string
     type: object
-  ark_internal_http_dto.DriverResponse:
+  dto.DriverResponse:
     properties:
       driver_id:
         type: string
@@ -32,14 +55,14 @@ definitions:
       status:
         type: string
     type: object
-  ark_internal_http_dto.HealthResponse:
+  dto.HealthResponse:
     properties:
       status:
         type: string
       version:
         type: string
     type: object
-  ark_internal_http_dto.OrderResponse:
+  dto.OrderResponse:
     properties:
       late_cancel:
         type: boolean
@@ -48,7 +71,7 @@ definitions:
       status:
         type: string
     type: object
-  ark_internal_http_dto.OrderStatusResponse:
+  dto.OrderStatusResponse:
     properties:
       driver_id:
         type: string
@@ -59,25 +82,25 @@ definitions:
       status_version:
         type: integer
     type: object
-  ark_internal_http_dto.RideAssistantBooking:
+  dto.RideAssistantBooking:
     properties:
       order_id:
         type: string
       status:
         type: string
     type: object
-  ark_internal_http_dto.RideAssistantResponse:
+  dto.RideAssistantResponse:
     properties:
       booking:
-        $ref: '#/definitions/ark_internal_http_dto.RideAssistantBooking'
+        $ref: '#/definitions/dto.RideAssistantBooking'
       reply:
         type: string
       session:
-        $ref: '#/definitions/ark_internal_http_dto.RideAssistantSession'
+        $ref: '#/definitions/dto.RideAssistantSession'
       status:
         type: string
     type: object
-  ark_internal_http_dto.RideAssistantSession:
+  dto.RideAssistantSession:
     properties:
       id:
         type: string
@@ -92,12 +115,12 @@ definitions:
       stage:
         type: string
     type: object
-  ark_internal_http_dto.ScheduledOrderSummary:
+  dto.ScheduledOrderSummary:
     properties:
       accepted_at:
         type: string
       actual_fee:
-        $ref: '#/definitions/ark_internal_types.Money'
+        $ref: '#/definitions/types.Money'
       assigned_at:
         type: string
       cancel_deadline_at:
@@ -113,9 +136,9 @@ definitions:
       driver_id:
         type: string
       dropoff:
-        $ref: '#/definitions/ark_internal_types.Point'
+        $ref: '#/definitions/types.Point'
       estimated_fee:
-        $ref: '#/definitions/ark_internal_types.Money'
+        $ref: '#/definitions/types.Money'
       id:
         type: string
       incentive_bonus:
@@ -127,7 +150,7 @@ definitions:
       passenger_id:
         type: string
       pickup:
-        $ref: '#/definitions/ark_internal_types.Point'
+        $ref: '#/definitions/types.Point'
       ride_type:
         type: string
       schedule_window_mins:
@@ -141,7 +164,7 @@ definitions:
       status_version:
         type: integer
     type: object
-  ark_internal_http_dto.UserResponse:
+  dto.UserResponse:
     properties:
       created_at:
         type: string
@@ -156,47 +179,7 @@ definitions:
       user_type:
         type: string
     type: object
-  ark_internal_httpx.ErrorBody:
-    properties:
-      error:
-        type: string
-    type: object
-  ark_internal_types.Money:
-    properties:
-      amount:
-        description: |-
-          Amount is measured in TWD minor units (cents, i.e. 1/100 TWD).
-          Must be non-negative. Use int64 to avoid floating-point drift.
-        format: int64
-        type: integer
-      currency:
-        description: |-
-          Currency is the ISO-4217 currency code. The project is TWD-only for now,
-          but the field is kept so non-TWD support can be added without a schema change.
-        type: string
-    type: object
-  ark_internal_types.Point:
-    properties:
-      lat:
-        format: float64
-        type: number
-      lng:
-        format: float64
-        type: number
-    type: object
-  internal_http.readyzDetailResponse:
-    properties:
-      detail:
-        type: string
-      status:
-        type: string
-    type: object
-  internal_http.readyzOKResponse:
-    properties:
-      status:
-        type: string
-    type: object
-  internal_http_handlers.aiChatReq:
+  handlers.aiChatReq:
     properties:
       message:
         type: string
@@ -206,7 +189,7 @@ definitions:
     - message
     - uid
     type: object
-  internal_http_handlers.createAndTieOrderReq:
+  handlers.createAndTieOrderReq:
     properties:
       dropoff_lat:
         type: number
@@ -224,7 +207,7 @@ definitions:
     - event_id
     - ride_type
     type: object
-  internal_http_handlers.createEventReq:
+  handlers.createEventReq:
     properties:
       description:
         type: string
@@ -241,7 +224,7 @@ definitions:
     - title
     - to
     type: object
-  internal_http_handlers.createOrderReq:
+  handlers.createOrderReq:
     properties:
       dropoff_lat:
         type: number
@@ -256,7 +239,7 @@ definitions:
     required:
     - ride_type
     type: object
-  internal_http_handlers.createScheduledReq:
+  handlers.createScheduledReq:
     properties:
       dropoff_lat:
         type: number
@@ -278,7 +261,7 @@ definitions:
     - schedule_window_mins
     - scheduled_at
     type: object
-  internal_http_handlers.createUserReq:
+  handlers.createUserReq:
     properties:
       email:
         type: string
@@ -293,12 +276,12 @@ definitions:
     - name
     - user_type
     type: object
-  internal_http_handlers.driverCancelReq:
+  handlers.driverCancelReq:
     properties:
       reason:
         type: string
     type: object
-  internal_http_handlers.editEventReq:
+  handlers.editEventReq:
     properties:
       description:
         type: string
@@ -315,7 +298,7 @@ definitions:
     - title
     - to
     type: object
-  internal_http_handlers.ensureDeviceReq:
+  handlers.ensureDeviceReq:
     properties:
       device_id:
         type: string
@@ -331,12 +314,12 @@ definitions:
     - fcm_token
     - platform
     type: object
-  internal_http_handlers.ensureDeviceResponse:
+  handlers.ensureDeviceResponse:
     properties:
       message:
         type: string
     type: object
-  internal_http_handlers.rideAssistantReq:
+  handlers.rideAssistantReq:
     properties:
       context_info:
         type: string
@@ -347,63 +330,80 @@ definitions:
     required:
     - message
     type: object
-  internal_http_handlers.scheduledOrdersResponse:
+  handlers.scheduledOrdersResponse:
     properties:
       orders:
         items:
-          $ref: '#/definitions/ark_internal_http_dto.ScheduledOrderSummary'
+          $ref: '#/definitions/dto.ScheduledOrderSummary'
         type: array
     type: object
-  internal_http_handlers.schedulesListResponse:
+  handlers.schedulesListResponse:
     properties:
       schedules:
         items:
-          $ref: '#/definitions/ark_internal_http_dto.CalendarScheduleResponse'
+          $ref: '#/definitions/dto.CalendarScheduleResponse'
         type: array
     type: object
-  internal_http_handlers.updateUserNameReq:
+  handlers.updateUserNameReq:
     properties:
       name:
         type: string
     required:
     - name
     type: object
-  internal_modules_driver.createReq:
+  http.readyzDetailResponse:
     properties:
-      license_number:
+      detail:
         type: string
-    required:
-    - license_number
-    type: object
-  internal_modules_driver.updateStatusReq:
-    properties:
       status:
-        enum:
-        - available
-        - on_trip
-        - offline
         type: string
-    required:
-    - status
     type: object
-  internal_modules_driver.updateStatusResponse:
+  http.readyzOKResponse:
     properties:
       status:
         type: string
     type: object
-  internal_modules_relation.sendRequestByPhoneReq:
+  httpx.ErrorBody:
+    properties:
+      error:
+        type: string
+    type: object
+  relation.sendRequestByPhoneReq:
     properties:
       telephone:
         type: string
     required:
     - telephone
     type: object
-  internal_modules_relation.sendRequestReq:
+  relation.sendRequestReq:
     properties:
       to_user_id:
         type: string
     required:
     - to_user_id
+    type: object
+  types.Money:
+    properties:
+      amount:
+        description: |-
+          Amount is measured in TWD minor units (cents, i.e. 1/100 TWD).
+          Must be non-negative. Use int64 to avoid floating-point drift.
+        format: int64
+        type: integer
+      currency:
+        description: |-
+          Currency is the ISO-4217 currency code. The project is TWD-only for now,
+          but the field is kept so non-TWD support can be added without a schema change.
+        type: string
+    type: object
+  types.Point:
+    properties:
+      lat:
+        format: float64
+        type: number
+      lng:
+        format: float64
+        type: number
     type: object
 host: localhost:8080
 info:
@@ -428,26 +428,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.aiChatReq'
+          $ref: '#/definitions/handlers.aiChatReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.AIChatResponse'
+            $ref: '#/definitions/dto.AIChatResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: AI chat (Gemini, token-metered)
@@ -466,26 +466,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.rideAssistantReq'
+          $ref: '#/definitions/handlers.rideAssistantReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.RideAssistantResponse'
+            $ref: '#/definitions/dto.RideAssistantResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Ride-assistant turn
@@ -503,22 +503,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.createEventReq'
+          $ref: '#/definitions/handlers.createEventReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.CalendarEventResponse'
+            $ref: '#/definitions/dto.CalendarEventResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Create calendar event
@@ -540,15 +540,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Delete calendar event
@@ -570,26 +570,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.editEventReq'
+          $ref: '#/definitions/handlers.editEventReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.CalendarEventResponse'
+            $ref: '#/definitions/dto.CalendarEventResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Edit calendar event
@@ -605,11 +605,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_http_handlers.schedulesListResponse'
+            $ref: '#/definitions/handlers.schedulesListResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List schedules for current user
@@ -627,30 +627,30 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.createAndTieOrderReq'
+          $ref: '#/definitions/handlers.createAndTieOrderReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.CalendarScheduleResponse'
+            $ref: '#/definitions/dto.CalendarScheduleResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Tie a ride order to a calendar event
@@ -672,15 +672,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Untie ride order from calendar event
@@ -699,26 +699,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_driver.createReq'
+          $ref: '#/definitions/driver.createReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.DriverResponse'
+            $ref: '#/definitions/dto.DriverResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Create driver profile
@@ -736,26 +736,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_driver.updateStatusReq'
+          $ref: '#/definitions/driver.updateStatusReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_modules_driver.updateStatusResponse'
+            $ref: '#/definitions/driver.updateStatusResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Update driver status
@@ -771,11 +771,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Delete current user
@@ -790,15 +790,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.UserResponse'
+            $ref: '#/definitions/dto.UserResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Get current user
@@ -815,22 +815,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.updateUserNameReq'
+          $ref: '#/definitions/handlers.updateUserNameReq'
       responses:
         "204":
           description: No Content
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Update current user name
@@ -849,26 +849,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.ensureDeviceReq'
+          $ref: '#/definitions/handlers.ensureDeviceReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_http_handlers.ensureDeviceResponse'
+            $ref: '#/definitions/handlers.ensureDeviceResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Register FCM device
@@ -886,26 +886,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.createOrderReq'
+          $ref: '#/definitions/handlers.createOrderReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Create instant order
@@ -926,19 +926,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Accept order (driver)
@@ -960,15 +960,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Driver arrived at pickup
@@ -991,19 +991,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Cancel order (passenger)
@@ -1025,19 +1025,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Claim scheduled order (driver)
@@ -1059,15 +1059,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Trip complete (enter payment)
@@ -1089,19 +1089,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Deny order (driver)
@@ -1124,26 +1124,26 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/internal_http_handlers.driverCancelReq'
+          $ref: '#/definitions/handlers.driverCancelReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Release claimed scheduled order (driver)
@@ -1166,19 +1166,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Match order to driver (MVP)
@@ -1200,15 +1200,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Passenger boarded
@@ -1230,15 +1230,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Pay for trip (MVP)
@@ -1260,15 +1260,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderStatusResponse'
+            $ref: '#/definitions/dto.OrderStatusResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Get order status
@@ -1284,11 +1284,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_http_handlers.scheduledOrdersResponse'
+            $ref: '#/definitions/handlers.scheduledOrdersResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List my scheduled orders
@@ -1306,22 +1306,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.createScheduledReq'
+          $ref: '#/definitions/handlers.createScheduledReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.OrderResponse'
+            $ref: '#/definitions/dto.OrderResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Create scheduled order
@@ -1349,11 +1349,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_http_handlers.scheduledOrdersResponse'
+            $ref: '#/definitions/handlers.scheduledOrdersResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List claimable scheduled orders
@@ -1370,7 +1370,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List accepted friends
@@ -1392,15 +1392,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Remove friend
@@ -1424,11 +1424,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Check friendship
@@ -1446,26 +1446,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_relation.sendRequestReq'
+          $ref: '#/definitions/relation.sendRequestReq'
       responses:
         "204":
           description: No Content
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Send friend request
@@ -1487,15 +1487,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Cancel outgoing friend request
@@ -1517,15 +1517,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Accept friend request
@@ -1546,15 +1546,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Reject friend request
@@ -1572,26 +1572,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_modules_relation.sendRequestByPhoneReq'
+          $ref: '#/definitions/relation.sendRequestByPhoneReq'
       responses:
         "204":
           description: No Content
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Send friend request by phone
@@ -1608,7 +1608,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List received friend requests
@@ -1625,7 +1625,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: List sent friend requests
@@ -1649,11 +1649,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
       security:
       - FirebaseAuth: []
       summary: Search users
@@ -1663,31 +1663,38 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a user row after Firebase signup. This endpoint is public
-        (no auth required) — the server trusts the client-supplied email/phone until
-        a follow-up PATCH.
+      description: Creates the backend user row for a freshly signed-up Firebase account.
+        The caller MUST send a valid Firebase ID Token — the server uses the verified
+        UID from that token as the user_id, so subsequent calls (e.g. GET /api/me)
+        resolve to the same row.
       parameters:
       - description: New user payload
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_http_handlers.createUserReq'
+          $ref: '#/definitions/handlers.createUserReq'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.UserResponse'
+            $ref: '#/definitions/dto.UserResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/ark_internal_httpx.ErrorBody'
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
       summary: Create user profile
       tags:
       - Auth & User
@@ -1701,7 +1708,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/ark_internal_http_dto.HealthResponse'
+            $ref: '#/definitions/dto.HealthResponse'
       summary: Liveness probe
       tags:
       - Health
@@ -1716,11 +1723,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_http.readyzOKResponse'
+            $ref: '#/definitions/http.readyzOKResponse'
         "503":
           description: Service Unavailable
           schema:
-            $ref: '#/definitions/internal_http.readyzDetailResponse'
+            $ref: '#/definitions/http.readyzDetailResponse'
       summary: Readiness probe
       tags:
       - Health

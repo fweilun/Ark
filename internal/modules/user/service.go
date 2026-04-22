@@ -3,8 +3,6 @@ package user
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"time"
 
@@ -27,7 +25,12 @@ func NewService(store *Store) *Service {
 }
 
 // CreateCommand holds the fields required to create a new user.
+//
+// UserID is the Firebase UID of the authenticated caller; the handler reads it
+// from the verified ID token and passes it in so the DB row key matches the
+// UID that subsequent authenticated requests (e.g. GET /api/me) will look up.
 type CreateCommand struct {
+	UserID   types.ID
 	Name     string
 	Email    string
 	Phone    string
@@ -36,14 +39,14 @@ type CreateCommand struct {
 
 // Create persists a new user with created_at set to now.
 func (s *Service) Create(ctx context.Context, cmd CreateCommand) (*User, error) {
-	if cmd.Name == "" || cmd.Email == "" {
+	if cmd.UserID == "" || cmd.Name == "" || cmd.Email == "" {
 		return nil, ErrBadRequest
 	}
 	if cmd.UserType != UserTypeRider && cmd.UserType != UserTypeDriver {
 		return nil, ErrBadRequest
 	}
 	u := &User{
-		UserID:    newID(),
+		UserID:    cmd.UserID,
 		Name:      cmd.Name,
 		Email:     cmd.Email,
 		Phone:     cmd.Phone,
@@ -78,10 +81,4 @@ func (s *Service) Delete(ctx context.Context, id types.ID) error {
 		return ErrBadRequest
 	}
 	return s.store.Delete(ctx, id)
-}
-
-func newID() types.ID {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	return types.ID(hex.EncodeToString(b[:]))
 }

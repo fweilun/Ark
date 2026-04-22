@@ -10,14 +10,6 @@
 
 ---
 
-## ⚠ 開工前必讀：已知後端 blocker
-
-`POST /api/users` 目前會用 `crypto/rand` 產生一組隨機 16-byte hex 當作 `user_id`（`internal/modules/user/service.go:46`），而 `GET /api/me` 是用 Firebase ID Token 裡的 UID 去查使用者（`internal/http/handlers/user_handler.go:88`）。兩邊對不起來，所以**現況下註冊完的使用者呼叫 `/api/me` 一定 404**。
-
-後端這邊會另外處理（預計改成：註冊時把 Firebase UID 當 `user_id` 寫進 DB）。Flutter 這邊可以先照 Task 1.2–1.4 做好基礎建設，真的要串 auth 請等後端 fix 上線再測 Task 1.5 / 1.6。進度會同步在 PR / Slack。
-
----
-
 ## 前置條件
 
 1. **同一個 Firebase project**：後端用的是 `zoozoo-v1`（service account JSON 在 `FIREBASE_CREDENTIALS_JSON` env var）。Flutter `firebase_options.dart` 的 `projectId` 必須一致，否則 token 過不了 `VerifyIDToken`。
@@ -46,10 +38,11 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
 
 除了以下 endpoint，其他都要帶 `Authorization: Bearer <Firebase ID Token>`：
 
-- `POST /api/users`（註冊本身不能帶 auth，待後端 blocker 修完後可能改成 auth-required）
 - `GET /health`
 - `GET /readyz`
 - `GET /swagger/*`
+
+**`POST /api/users` 也需要 token**：handler 會從 verified token 拿 Firebase UID 當作新使用者的 `user_id`，所以呼叫前 Flutter 必須先完成 Firebase sign-in、拿到一個有效 idToken，再帶著它打這支 API。
 
 Token 從 Flutter 的 Firebase SDK `user.getIdToken()` 拿；**有效期 1 小時**，interceptor 要自動 refresh。
 
@@ -187,8 +180,6 @@ Flutter 端的 `OrderStatus` enum 要完整列出這 11 種（建議也加 `none
 
 ## Task 1.5 — 實作 Auth 串接
 
-> ⚠ 此任務會被本文件最上方的「已知後端 blocker」擋住。後端 fix 上線前，`POST /api/users` 之後 `GET /api/me` 一定 404。可以先把程式碼寫好，但先不要當成「跑通」。
-
 ### Firebase OTP 成功後呼叫 `POST /api/users`
 
 Request shape（見 `internal/http/handlers/user_handler.go:29`）：
@@ -202,8 +193,9 @@ Request shape（見 `internal/http/handlers/user_handler.go:29`）：
 }
 ```
 
-- **此 endpoint 不需要 Bearer token**（但後端修 blocker 時可能會改為需要；屆時 Flutter 只要 interceptor 已經在就會自動帶）。
+- **此 endpoint 需要帶 `Authorization: Bearer <idToken>`**；body 裡**不要**塞 `user_id`，server 會直接用 token 裡驗證過的 Firebase UID。
 - Response 201 回完整的 `UserResponse`（跟 `GET /api/me` 同一個 DTO）。
+- 順序很關鍵：Firebase sign-in 成功 → `getIdToken()` 拿到 token → interceptor 接手 → 呼叫 `POST /api/users`。如果 token 還沒拿到就先打這支 API 會 401。
 
 ### `completeRegistration()` in `auth_bloc.dart`
 
@@ -231,8 +223,8 @@ Request shape（見 `internal/http/handlers/user_handler.go:29`）：
 1. [ ] 後端 running，`curl http://localhost:8080/health` → `{"status":"ok","version":"0.1.0"}`。
 2. [ ] Flutter emulator 跑起來，`--dart-define=API_BASE_URL=http://10.0.2.2:8080`（Android）或 `http://localhost:8080`（iOS）。
 3. [ ] Firebase 登入（OTP 流程）成功。
-4. [ ] `POST /api/users` 回 201。後端 log 應該看到一筆 `POST /api/users` 200/201。
-5. [ ] `GET /api/me` 回 200、payload 是剛剛建立的使用者（⚠ 這步在後端 blocker 修完前會 404）。
+4. [ ] `POST /api/users` 回 201（記得帶 `Authorization: Bearer <idToken>`）。後端 log 應該看到一筆 `POST /api/users` 201。
+5. [ ] `GET /api/me` 回 200、payload 是剛剛建立的使用者。
 6. [ ] 把 app 殺掉重開，自動 login 後 `GET /api/me` 還是回 200（token refresh 正常）。
 
 ### 常見失敗
@@ -241,7 +233,8 @@ Request shape（見 `internal/http/handlers/user_handler.go:29`）：
 | ------------------------ | ------------------------------------------------------------------------ |
 | Connection refused       | base URL 錯（emulator 要用 `10.0.2.2`），或 firewall 擋 8080，或後端沒啟 |
 | 401 `invalid or expired token` | token 過期、Firebase project 不一致、`FIREBASE_CREDENTIALS_JSON` 沒設 |
-| 404 on `/api/me`         | **本文件開頭的 blocker**，等後端 fix                                     |
+| 404 on `/api/me`         | 還沒呼叫過 `POST /api/users`，或上次建立時 token 無效 / UID 不一致         |
+| 401 on `/api/users`      | 沒帶 token、token 過期、或 Firebase project 不是 `zoozoo-v1`              |
 | 400 on `/api/users`      | `user_type` 沒帶或不是 `rider` / `driver`；`name` / `email` 空            |
 | CORS 錯誤                | 只有 Flutter **web** 會遇到；目前後端沒有 CORS middleware，需要另開任務  |
 
