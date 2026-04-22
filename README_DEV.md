@@ -43,6 +43,26 @@
 
    <http://localhost:8080/swagger/index.html>
 
+## 從 Flutter 連線到本地 API
+
+`ARK_HTTP_ADDR=:8080` 代表 server 綁在所有介面（等同 `0.0.0.0:8080`），所以同網段的手機／模擬器都可以連進來。根據執行環境用對應的 base URL：
+
+| 執行環境            | base URL                            | 備註                                                          |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------- |
+| Android emulator    | `http://10.0.2.2:8080`              | emulator 內的 `10.0.2.2` 會被轉發到 host 的 `127.0.0.1`。     |
+| iOS simulator       | `http://localhost:8080`             | simulator 跟 host 共用 network stack，直接走 localhost。      |
+| 實機（Android/iOS） | `http://<筆電 LAN IP>:8080`         | 手機和筆電必須在同一個 Wi-Fi；防火牆要放行 8080。             |
+
+查筆電 LAN IP（macOS）：
+
+```bash
+ipconfig getifaddr en0   # Wi-Fi 介面；有線網路通常是 en1
+```
+
+連線前可以先從手機的瀏覽器打 `http://<base-url>/health`，看到 `{"status":"ok"}` 就代表 socket 通了。
+
+> ⚠ 實機測試時要確認 macOS 防火牆沒擋 8080（系統設定 → 網路 → 防火牆）。如果擋了，第一次 `go run` 時系統會跳詢問視窗，按「允許」即可。
+
 ## 測試需要 Auth 的 API
 
 除了 `POST /api/users`、`GET /health`、`GET /readyz`、`GET /swagger/*` 之外，所有 endpoint 都需要帶
