@@ -1,28 +1,5 @@
 basePath: /
 definitions:
-  driver.createReq:
-    properties:
-      license_number:
-        type: string
-    required:
-    - license_number
-    type: object
-  driver.updateStatusReq:
-    properties:
-      status:
-        enum:
-        - available
-        - on_trip
-        - offline
-        type: string
-    required:
-    - status
-    type: object
-  driver.updateStatusResponse:
-    properties:
-      status:
-        type: string
-    type: object
   dto.AIChatResponse:
     properties:
       reply:
@@ -60,6 +37,30 @@ definitions:
       status:
         type: string
       version:
+        type: string
+    type: object
+  dto.NearbyDriverResponse:
+    properties:
+      distance_km:
+        type: number
+      driver_id:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
+    type: object
+  dto.NearbyPassengerResponse:
+    properties:
+      distance_km:
+        type: number
+      lat:
+        type: number
+      lng:
+        type: number
+      passenger_id:
+        type: string
+      status:
         type: string
     type: object
   dto.OrderResponse:
@@ -281,6 +282,29 @@ definitions:
       reason:
         type: string
     type: object
+  handlers.driverCreateReq:
+    properties:
+      license_number:
+        type: string
+    required:
+    - license_number
+    type: object
+  handlers.driverUpdateStatusReq:
+    properties:
+      status:
+        enum:
+        - available
+        - on_trip
+        - offline
+        type: string
+    required:
+    - status
+    type: object
+  handlers.driverUpdateStatusResponse:
+    properties:
+      status:
+        type: string
+    type: object
   handlers.editEventReq:
     properties:
       description:
@@ -318,6 +342,20 @@ definitions:
     properties:
       message:
         type: string
+    type: object
+  handlers.relationSendRequestByPhoneReq:
+    properties:
+      telephone:
+        type: string
+    required:
+    - telephone
+    type: object
+  handlers.relationSendRequestReq:
+    properties:
+      to_user_id:
+        type: string
+    required:
+    - to_user_id
     type: object
   handlers.rideAssistantReq:
     properties:
@@ -367,20 +405,6 @@ definitions:
     properties:
       error:
         type: string
-    type: object
-  relation.sendRequestByPhoneReq:
-    properties:
-      telephone:
-        type: string
-    required:
-    - telephone
-    type: object
-  relation.sendRequestReq:
-    properties:
-      to_user_id:
-        type: string
-    required:
-    - to_user_id
     type: object
   types.Money:
     properties:
@@ -699,7 +723,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/driver.createReq'
+          $ref: '#/definitions/handlers.driverCreateReq'
       produces:
       - application/json
       responses:
@@ -736,14 +760,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/driver.updateStatusReq'
+          $ref: '#/definitions/handlers.driverUpdateStatusReq'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/driver.updateStatusResponse'
+            $ref: '#/definitions/handlers.driverUpdateStatusResponse'
         "400":
           description: Bad Request
           schema:
@@ -761,6 +785,127 @@ paths:
       summary: Update driver status
       tags:
       - Driver
+  /api/location/drivers:
+    get:
+      description: Returns every driver currently reporting an online position via
+        the RTDB-backed poller. DistanceKm is always 0 because no query origin is
+        supplied; use GET /api/location/drivers/nearby when you need distances.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyDriverResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List all online drivers
+      tags:
+      - Location
+  /api/location/drivers/nearby:
+    get:
+      description: Returns online drivers within `radius_km` of (`lat`, `lng`), sorted
+        by distance ascending. Presence is sourced from the Redis GEO index populated
+        by the RTDB poller; drivers whose status TTL has expired are filtered out.
+      parameters:
+      - description: Query origin latitude
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Query origin longitude
+        in: query
+        name: lng
+        required: true
+        type: number
+      - description: Search radius in kilometres (must be > 0)
+        in: query
+        name: radius_km
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyDriverResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List nearby drivers
+      tags:
+      - Location
+  /api/location/passengers/nearby:
+    get:
+      description: Returns passengers currently looking for a ride within `radius_km`
+        of (`lat`, `lng`), sorted by distance ascending. Sourced from the Redis GEO
+        index populated by the RTDB poller.
+      parameters:
+      - description: Query origin latitude
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Query origin longitude
+        in: query
+        name: lng
+        required: true
+        type: number
+      - description: Search radius in kilometres (must be > 0)
+        in: query
+        name: radius_km
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyPassengerResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List nearby passengers
+      tags:
+      - Location
   /api/me:
     delete:
       description: Hard-deletes the authenticated user's profile. There is no soft-delete
@@ -1446,7 +1591,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/relation.sendRequestReq'
+          $ref: '#/definitions/handlers.relationSendRequestReq'
       responses:
         "204":
           description: No Content
@@ -1572,7 +1717,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/relation.sendRequestByPhoneReq'
+          $ref: '#/definitions/handlers.relationSendRequestByPhoneReq'
       responses:
         "204":
           description: No Content

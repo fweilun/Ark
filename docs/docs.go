@@ -453,7 +453,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/driver.createReq"
+                            "$ref": "#/definitions/handlers.driverCreateReq"
                         }
                     }
                 ],
@@ -510,7 +510,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/driver.updateStatusReq"
+                            "$ref": "#/definitions/handlers.driverUpdateStatusReq"
                         }
                     }
                 ],
@@ -518,7 +518,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/driver.updateStatusResponse"
+                            "$ref": "#/definitions/handlers.driverUpdateStatusResponse"
                         }
                     },
                     "400": {
@@ -535,6 +535,184 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/location/drivers": {
+            "get": {
+                "security": [
+                    {
+                        "FirebaseAuth": []
+                    }
+                ],
+                "description": "Returns every driver currently reporting an online position via the RTDB-backed poller. DistanceKm is always 0 because no query origin is supplied; use GET /api/location/drivers/nearby when you need distances.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Location"
+                ],
+                "summary": "List all online drivers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.NearbyDriverResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/location/drivers/nearby": {
+            "get": {
+                "security": [
+                    {
+                        "FirebaseAuth": []
+                    }
+                ],
+                "description": "Returns online drivers within ` + "`" + `radius_km` + "`" + ` of (` + "`" + `lat` + "`" + `, ` + "`" + `lng` + "`" + `), sorted by distance ascending. Presence is sourced from the Redis GEO index populated by the RTDB poller; drivers whose status TTL has expired are filtered out.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Location"
+                ],
+                "summary": "List nearby drivers",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "Query origin latitude",
+                        "name": "lat",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Query origin longitude",
+                        "name": "lng",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Search radius in kilometres (must be \u003e 0)",
+                        "name": "radius_km",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.NearbyDriverResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/location/passengers/nearby": {
+            "get": {
+                "security": [
+                    {
+                        "FirebaseAuth": []
+                    }
+                ],
+                "description": "Returns passengers currently looking for a ride within ` + "`" + `radius_km` + "`" + ` of (` + "`" + `lat` + "`" + `, ` + "`" + `lng` + "`" + `), sorted by distance ascending. Sourced from the Redis GEO index populated by the RTDB poller.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Location"
+                ],
+                "summary": "List nearby passengers",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "Query origin latitude",
+                        "name": "lat",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Query origin longitude",
+                        "name": "lng",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Search radius in kilometres (must be \u003e 0)",
+                        "name": "radius_km",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.NearbyPassengerResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpx.ErrorBody"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/httpx.ErrorBody"
                         }
@@ -1590,7 +1768,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/relation.sendRequestReq"
+                            "$ref": "#/definitions/handlers.relationSendRequestReq"
                         }
                     }
                 ],
@@ -1647,7 +1825,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/relation.sendRequestByPhoneReq"
+                            "$ref": "#/definitions/handlers.relationSendRequestByPhoneReq"
                         }
                     }
                 ],
@@ -2024,41 +2202,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "driver.createReq": {
-            "type": "object",
-            "required": [
-                "license_number"
-            ],
-            "properties": {
-                "license_number": {
-                    "type": "string"
-                }
-            }
-        },
-        "driver.updateStatusReq": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "available",
-                        "on_trip",
-                        "offline"
-                    ]
-                }
-            }
-        },
-        "driver.updateStatusResponse": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
         "dto.AIChatResponse": {
             "type": "object",
             "properties": {
@@ -2116,6 +2259,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.NearbyDriverResponse": {
+            "type": "object",
+            "properties": {
+                "distance_km": {
+                    "type": "number"
+                },
+                "driver_id": {
+                    "type": "string"
+                },
+                "lat": {
+                    "type": "number"
+                },
+                "lng": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.NearbyPassengerResponse": {
+            "type": "object",
+            "properties": {
+                "distance_km": {
+                    "type": "number"
+                },
+                "lat": {
+                    "type": "number"
+                },
+                "lng": {
+                    "type": "number"
+                },
+                "passenger_id": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -2450,6 +2630,41 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.driverCreateReq": {
+            "type": "object",
+            "required": [
+                "license_number"
+            ],
+            "properties": {
+                "license_number": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.driverUpdateStatusReq": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "available",
+                        "on_trip",
+                        "offline"
+                    ]
+                }
+            }
+        },
+        "handlers.driverUpdateStatusResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.editEventReq": {
             "type": "object",
             "required": [
@@ -2501,6 +2716,28 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.relationSendRequestByPhoneReq": {
+            "type": "object",
+            "required": [
+                "telephone"
+            ],
+            "properties": {
+                "telephone": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.relationSendRequestReq": {
+            "type": "object",
+            "required": [
+                "to_user_id"
+            ],
+            "properties": {
+                "to_user_id": {
                     "type": "string"
                 }
             }
@@ -2578,28 +2815,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "error": {
-                    "type": "string"
-                }
-            }
-        },
-        "relation.sendRequestByPhoneReq": {
-            "type": "object",
-            "required": [
-                "telephone"
-            ],
-            "properties": {
-                "telephone": {
-                    "type": "string"
-                }
-            }
-        },
-        "relation.sendRequestReq": {
-            "type": "object",
-            "required": [
-                "to_user_id"
-            ],
-            "properties": {
-                "to_user_id": {
                     "type": "string"
                 }
             }
