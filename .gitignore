@@ -13,3 +13,4 @@ firebase-*.json
 playground
 .env
 .dispatch/
+docker-compose.override.yml
