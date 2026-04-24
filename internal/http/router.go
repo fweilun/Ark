@@ -141,8 +141,18 @@ func NewRouter(
 	api.PATCH("/api/driver/status", driverHandler.UpdateStatus)
 
 	// relations (friend requests & friendships)
-	relationHandler := relation.NewHandler(relationService)
-	relation.RegisterRoutes(api, relationHandler)
+	relationHandler := handlers.NewRelationHandler(relationService)
+	api.POST("/api/relations/requests", relationHandler.SendRequest)
+	api.POST("/api/relations/requests/by-phone", relationHandler.SendRequestByPhone)
+	api.GET("/api/relations/search", relationHandler.SearchUsers)
+	api.GET("/api/relations/requests/received", relationHandler.ListReceived)
+	api.GET("/api/relations/requests/sent", relationHandler.ListSent)
+	api.DELETE("/api/relations/requests/:friend_id", relationHandler.CancelRequest)
+	api.POST("/api/relations/requests/:friend_id/accept", relationHandler.AcceptRequest)
+	api.POST("/api/relations/requests/:friend_id/reject", relationHandler.RejectRequest)
+	api.GET("/api/relations/friends", relationHandler.ListFriends)
+	api.DELETE("/api/relations/friends/:friend_id", relationHandler.RemoveFriend)
+	api.GET("/api/relations/friends/:friend_id/is", relationHandler.IsFriend)
 
 	// ride assistant
 	if rideAssistantSvc != nil {

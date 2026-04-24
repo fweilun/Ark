@@ -15,33 +15,36 @@
 //	GET    /api/relations/friends/:friend_id/is  — check if :friend_id is a friend
 //
 // Auth: all routes require the Auth middleware to set user_id in context.
-package relation
+package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/http/middleware"
 	"ark/internal/httpx"
+	"ark/internal/modules/relation"
 )
 
-// Handler holds the relation HTTP handlers.
-type Handler struct {
-	svc *Service
+// RelationHandler holds the relation HTTP handlers.
+type RelationHandler struct {
+	svc *relation.Service
 }
 
-// NewHandler returns a Handler backed by the given Service.
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+// NewRelationHandler returns a RelationHandler backed by the given Service.
+func NewRelationHandler(svc *relation.Service) *RelationHandler {
+	return &RelationHandler{svc: svc}
 }
 
 // --- request types ---
 
-type sendRequestReq struct {
+type relationSendRequestReq struct {
 	ToUserID string `json:"to_user_id" binding:"required"`
 }
 
-type sendRequestByPhoneReq struct {
+type relationSendRequestByPhoneReq struct {
 	Telephone string `json:"telephone" binding:"required"`
 }
 
@@ -53,25 +56,25 @@ type sendRequestByPhoneReq struct {
 // @Tags         Relation
 // @Accept       json
 // @Security     FirebaseAuth
-// @Param        body  body      sendRequestReq      true  "Target user id"
+// @Param        body  body      relationSendRequestReq      true  "Target user id"
 // @Success      204
 // @Failure      400   {object}  httpx.ErrorBody
 // @Failure      401   {object}  httpx.ErrorBody
 // @Failure      404   {object}  httpx.ErrorBody
 // @Failure      409   {object}  httpx.ErrorBody
 // @Router       /api/relations/requests [post]
-func (h *Handler) SendRequest(c *gin.Context) {
-	from, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) SendRequest(c *gin.Context) {
+	from, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req sendRequestReq
+	var req relationSendRequestReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.svc.Request(c.Request.Context(), from, UserID(req.ToUserID)); err != nil {
+	if err := h.svc.Request(c.Request.Context(), from, relation.UserID(req.ToUserID)); err != nil {
 		writeRelationError(c, err)
 		return
 	}
@@ -85,20 +88,20 @@ func (h *Handler) SendRequest(c *gin.Context) {
 // @Tags         Relation
 // @Accept       json
 // @Security     FirebaseAuth
-// @Param        body  body      sendRequestByPhoneReq  true  "Target telephone"
+// @Param        body  body      relationSendRequestByPhoneReq  true  "Target telephone"
 // @Success      204
 // @Failure      400   {object}  httpx.ErrorBody
 // @Failure      401   {object}  httpx.ErrorBody
 // @Failure      404   {object}  httpx.ErrorBody
 // @Failure      409   {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/by-phone [post]
-func (h *Handler) SendRequestByPhone(c *gin.Context) {
-	from, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) SendRequestByPhone(c *gin.Context) {
+	from, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req sendRequestByPhoneReq
+	var req relationSendRequestByPhoneReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
@@ -122,7 +125,7 @@ func (h *Handler) SendRequestByPhone(c *gin.Context) {
 // @Failure      400  {object}  httpx.ErrorBody
 // @Failure      401  {object}  httpx.ErrorBody
 // @Router       /api/relations/search [get]
-func (h *Handler) SearchUsers(c *gin.Context) {
+func (h *RelationHandler) SearchUsers(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing query parameter q")
@@ -146,8 +149,8 @@ func (h *Handler) SearchUsers(c *gin.Context) {
 // @Success      200
 // @Failure      401  {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/received [get]
-func (h *Handler) ListReceived(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) ListReceived(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -170,8 +173,8 @@ func (h *Handler) ListReceived(c *gin.Context) {
 // @Success      200
 // @Failure      401  {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/sent [get]
-func (h *Handler) ListSent(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) ListSent(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -196,13 +199,13 @@ func (h *Handler) ListSent(c *gin.Context) {
 // @Failure      401  {object}  httpx.ErrorBody
 // @Failure      404  {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/{friend_id} [delete]
-func (h *Handler) CancelRequest(c *gin.Context) {
-	from, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) CancelRequest(c *gin.Context) {
+	from, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	to := UserID(c.Param("friend_id"))
+	to := relation.UserID(c.Param("friend_id"))
 	if to == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
@@ -226,13 +229,13 @@ func (h *Handler) CancelRequest(c *gin.Context) {
 // @Failure      401  {object}  httpx.ErrorBody
 // @Failure      404  {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/{friend_id}/accept [post]
-func (h *Handler) AcceptRequest(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) AcceptRequest(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	friendID := UserID(c.Param("friend_id"))
+	friendID := relation.UserID(c.Param("friend_id"))
 	if friendID == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
@@ -256,13 +259,13 @@ func (h *Handler) AcceptRequest(c *gin.Context) {
 // @Failure      401  {object}  httpx.ErrorBody
 // @Failure      404  {object}  httpx.ErrorBody
 // @Router       /api/relations/requests/{friend_id}/reject [post]
-func (h *Handler) RejectRequest(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) RejectRequest(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	friendID := UserID(c.Param("friend_id"))
+	friendID := relation.UserID(c.Param("friend_id"))
 	if friendID == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
@@ -284,8 +287,8 @@ func (h *Handler) RejectRequest(c *gin.Context) {
 // @Success      200
 // @Failure      401  {object}  httpx.ErrorBody
 // @Router       /api/relations/friends [get]
-func (h *Handler) ListFriends(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) ListFriends(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
@@ -310,13 +313,13 @@ func (h *Handler) ListFriends(c *gin.Context) {
 // @Failure      401  {object}  httpx.ErrorBody
 // @Failure      404  {object}  httpx.ErrorBody
 // @Router       /api/relations/friends/{friend_id} [delete]
-func (h *Handler) RemoveFriend(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) RemoveFriend(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	friendID := UserID(c.Param("friend_id"))
+	friendID := relation.UserID(c.Param("friend_id"))
 	if friendID == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
@@ -341,13 +344,13 @@ func (h *Handler) RemoveFriend(c *gin.Context) {
 // @Failure      400  {object}  httpx.ErrorBody
 // @Failure      401  {object}  httpx.ErrorBody
 // @Router       /api/relations/friends/{friend_id}/is [get]
-func (h *Handler) IsFriend(c *gin.Context) {
-	uid, ok := userIDFromCtx(c.Request.Context())
+func (h *RelationHandler) IsFriend(c *gin.Context) {
+	uid, ok := relationUserIDFromCtx(c.Request.Context())
 	if !ok {
 		httpx.RespondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	friendID := UserID(c.Param("friend_id"))
+	friendID := relation.UserID(c.Param("friend_id"))
 	if friendID == "" {
 		httpx.RespondError(c, http.StatusBadRequest, "missing friend_id")
 		return
@@ -360,19 +363,24 @@ func (h *Handler) IsFriend(c *gin.Context) {
 	writeJSON(c, http.StatusOK, map[string]bool{"is_friend": result})
 }
 
-func writeJSON(c *gin.Context, status int, v any) {
-	c.JSON(status, v)
+// relationUserIDFromCtx extracts the authenticated user's ID from the Go request context.
+func relationUserIDFromCtx(ctx context.Context) (relation.UserID, bool) {
+	id, ok := middleware.UserIDFromContext(ctx)
+	if !ok || id == "" {
+		return "", false
+	}
+	return relation.UserID(id), true
 }
 
 func writeRelationError(c *gin.Context, err error) {
 	switch err {
-	case ErrBadRequest:
+	case relation.ErrBadRequest:
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
-	case ErrNotFound:
+	case relation.ErrNotFound:
 		httpx.RespondError(c, http.StatusNotFound, err.Error())
-	case ErrConflict:
+	case relation.ErrConflict:
 		httpx.RespondError(c, http.StatusConflict, err.Error())
-	case ErrForbidden:
+	case relation.ErrForbidden:
 		httpx.RespondError(c, http.StatusForbidden, err.Error())
 	default:
 		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
