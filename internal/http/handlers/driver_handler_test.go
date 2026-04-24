@@ -1,5 +1,5 @@
 // README: Driver handler tests — permission enforcement and handler logic.
-package driver
+package handlers
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ark/internal/http/middleware"
+	"ark/internal/modules/driver"
 	"ark/internal/types"
 )
 
@@ -22,45 +23,45 @@ func init() {
 
 // --- in-memory mock store ---
 
-type mockStore struct {
-	drivers map[string]*Driver
+type mockDriverStore struct {
+	drivers map[string]*driver.Driver
 }
 
-func newMockStore() *mockStore {
-	return &mockStore{drivers: make(map[string]*Driver)}
+func newMockDriverStore() *mockDriverStore {
+	return &mockDriverStore{drivers: make(map[string]*driver.Driver)}
 }
 
-func (m *mockStore) Create(_ context.Context, d *Driver) error {
+func (m *mockDriverStore) Create(_ context.Context, d *driver.Driver) error {
 	if _, exists := m.drivers[string(d.ID)]; exists {
-		return ErrConflict
+		return driver.ErrConflict
 	}
 	cp := *d
 	m.drivers[string(d.ID)] = &cp
 	return nil
 }
 
-func (m *mockStore) Get(_ context.Context, id types.ID) (*Driver, error) {
+func (m *mockDriverStore) Get(_ context.Context, id types.ID) (*driver.Driver, error) {
 	d, ok := m.drivers[string(id)]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, driver.ErrNotFound
 	}
 	cp := *d
 	return &cp, nil
 }
 
-func (m *mockStore) UpdateRating(_ context.Context, id types.ID, newRating float64) error {
+func (m *mockDriverStore) UpdateRating(_ context.Context, id types.ID, newRating float64) error {
 	d, ok := m.drivers[string(id)]
 	if !ok {
-		return ErrNotFound
+		return driver.ErrNotFound
 	}
 	d.Rating = newRating
 	return nil
 }
 
-func (m *mockStore) UpdateStatusWithLock(_ context.Context, id types.ID, newStatus string) error {
+func (m *mockDriverStore) UpdateStatusWithLock(_ context.Context, id types.ID, newStatus string) error {
 	d, ok := m.drivers[string(id)]
 	if !ok {
-		return ErrNotFound
+		return driver.ErrNotFound
 	}
 	d.Status = newStatus
 	return nil
@@ -68,33 +69,33 @@ func (m *mockStore) UpdateStatusWithLock(_ context.Context, id types.ID, newStat
 
 // --- test helpers ---
 
-func setupRouter(svc *Service) *gin.Engine {
+func setupDriverRouter(svc *driver.Service) *gin.Engine {
 	r := gin.New()
-	h := NewHandler(svc)
+	h := NewDriverHandler(svc)
 	r.PUT("/api/driver/create", h.Create)
 	r.PUT("/api/driver/status", h.UpdateStatus)
 	return r
 }
 
-// withUserID injects a user_id into the request context to simulate an authenticated request.
-func withUserID(req *http.Request, userID string) *http.Request {
+// withDriverUserID injects a user_id into the request context to simulate an authenticated request.
+func withDriverUserID(req *http.Request, userID string) *http.Request {
 	ctx := middleware.WithUserIDContext(req.Context(), userID)
 	return req.WithContext(ctx)
 }
 
-func jsonBody(v any) *bytes.Buffer {
+func driverJSONBody(v any) *bytes.Buffer {
 	b, _ := json.Marshal(v)
 	return bytes.NewBuffer(b)
 }
 
 // --- permission tests ---
 
-func TestCreate_Unauthenticated(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+func TestDriverCreate_Unauthenticated(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"license_number": "ABC-123"})
+	body := driverJSONBody(map[string]any{"license_number": "ABC-123"})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
 	// No user_id in context — unauthenticated.
@@ -107,12 +108,12 @@ func TestCreate_Unauthenticated(t *testing.T) {
 	}
 }
 
-func TestUpdateStatus_Unauthenticated(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+func TestDriverUpdateStatus_Unauthenticated(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"status": StatusAvailable})
+	body := driverJSONBody(map[string]any{"status": driver.StatusAvailable})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
 	// No user_id in context — unauthenticated.
@@ -127,15 +128,15 @@ func TestUpdateStatus_Unauthenticated(t *testing.T) {
 
 // --- handler logic tests ---
 
-func TestCreate_MissingLicenseNumber(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+func TestDriverCreate_MissingLicenseNumber(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"license_number": ""})
+	body := driverJSONBody(map[string]any{"license_number": ""})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-1")
+	req = withDriverUserID(req, "driver-1")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -145,15 +146,15 @@ func TestCreate_MissingLicenseNumber(t *testing.T) {
 	}
 }
 
-func TestCreate_Success(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+func TestDriverCreate_Success(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"license_number": "AB-1234"})
+	body := driverJSONBody(map[string]any{"license_number": "AB-1234"})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-1")
+	req = withDriverUserID(req, "driver-1")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -172,8 +173,8 @@ func TestCreate_Success(t *testing.T) {
 	if resp["license_number"] != "AB-1234" {
 		t.Errorf("expected license_number=AB-1234, got %v", resp["license_number"])
 	}
-	if resp["status"] != StatusAvailable {
-		t.Errorf("expected status=%s, got %v", StatusAvailable, resp["status"])
+	if resp["status"] != driver.StatusAvailable {
+		t.Errorf("expected status=%s, got %v", driver.StatusAvailable, resp["status"])
 	}
 	// driver_id in store must be set to context user, never from body.
 	d, err := store.Get(context.Background(), types.ID("driver-1"))
@@ -185,19 +186,19 @@ func TestCreate_Success(t *testing.T) {
 	}
 }
 
-func TestCreate_DuplicateDriver(t *testing.T) {
-	store := newMockStore()
+func TestDriverCreate_DuplicateDriver(t *testing.T) {
+	store := newMockDriverStore()
 	// Pre-seed a driver so the second create conflicts.
-	store.drivers["driver-2"] = &Driver{
-		ID: "driver-2", LicenseNumber: "XX-0000", Rating: 5.0, Status: StatusAvailable, OnboardedAt: time.Now(),
+	store.drivers["driver-2"] = &driver.Driver{
+		ID: "driver-2", LicenseNumber: "XX-0000", Rating: 5.0, Status: driver.StatusAvailable, OnboardedAt: time.Now(),
 	}
-	svc := NewService(store)
-	r := setupRouter(svc)
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"license_number": "AB-1234"})
+	body := driverJSONBody(map[string]any{"license_number": "AB-1234"})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-2")
+	req = withDriverUserID(req, "driver-2")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -207,18 +208,18 @@ func TestCreate_DuplicateDriver(t *testing.T) {
 	}
 }
 
-func TestUpdateStatus_InvalidStatus(t *testing.T) {
-	store := newMockStore()
-	store.drivers["driver-3"] = &Driver{
-		ID: "driver-3", LicenseNumber: "ZZ-9999", Rating: 5.0, Status: StatusAvailable, OnboardedAt: time.Now(),
+func TestDriverUpdateStatus_InvalidStatus(t *testing.T) {
+	store := newMockDriverStore()
+	store.drivers["driver-3"] = &driver.Driver{
+		ID: "driver-3", LicenseNumber: "ZZ-9999", Rating: 5.0, Status: driver.StatusAvailable, OnboardedAt: time.Now(),
 	}
-	svc := NewService(store)
-	r := setupRouter(svc)
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"status": "flying"})
+	body := driverJSONBody(map[string]any{"status": "flying"})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-3")
+	req = withDriverUserID(req, "driver-3")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -228,18 +229,18 @@ func TestUpdateStatus_InvalidStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateStatus_Success(t *testing.T) {
-	store := newMockStore()
-	store.drivers["driver-4"] = &Driver{
-		ID: "driver-4", LicenseNumber: "CD-5678", Rating: 5.0, Status: StatusAvailable, OnboardedAt: time.Now(),
+func TestDriverUpdateStatus_Success(t *testing.T) {
+	store := newMockDriverStore()
+	store.drivers["driver-4"] = &driver.Driver{
+		ID: "driver-4", LicenseNumber: "CD-5678", Rating: 5.0, Status: driver.StatusAvailable, OnboardedAt: time.Now(),
 	}
-	svc := NewService(store)
-	r := setupRouter(svc)
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"status": StatusOnTrip})
+	body := driverJSONBody(map[string]any{"status": driver.StatusOnTrip})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-4")
+	req = withDriverUserID(req, "driver-4")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -252,8 +253,8 @@ func TestUpdateStatus_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp["status"] != StatusOnTrip {
-		t.Errorf("expected status=%s, got %v", StatusOnTrip, resp["status"])
+	if resp["status"] != driver.StatusOnTrip {
+		t.Errorf("expected status=%s, got %v", driver.StatusOnTrip, resp["status"])
 	}
 
 	// Verify store was updated.
@@ -261,20 +262,20 @@ func TestUpdateStatus_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Get: %v", err)
 	}
-	if d.Status != StatusOnTrip {
-		t.Errorf("expected stored status=%s, got %s", StatusOnTrip, d.Status)
+	if d.Status != driver.StatusOnTrip {
+		t.Errorf("expected stored status=%s, got %s", driver.StatusOnTrip, d.Status)
 	}
 }
 
-func TestUpdateStatus_MissingBody(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+func TestDriverUpdateStatus_MissingBody(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
-	body := jsonBody(map[string]any{"status": ""})
+	body := driverJSONBody(map[string]any{"status": ""})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/status", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "driver-5")
+	req = withDriverUserID(req, "driver-5")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -287,15 +288,15 @@ func TestUpdateStatus_MissingBody(t *testing.T) {
 // TestDriverIDNeverFromBody verifies that the driver_id cannot be overridden via the request body.
 // Even if a malicious client sends a "driver_id" field, the handler must ignore it and use the context value.
 func TestDriverIDNeverFromBody(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
-	r := setupRouter(svc)
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
+	r := setupDriverRouter(svc)
 
 	// Body includes a "driver_id" field — the handler must ignore it.
-	body := jsonBody(map[string]any{"license_number": "EF-1111", "driver_id": "attacker-id"})
+	body := driverJSONBody(map[string]any{"license_number": "EF-1111", "driver_id": "attacker-id"})
 	req := httptest.NewRequest(http.MethodPut, "/api/driver/create", body)
 	req.Header.Set("Content-Type", "application/json")
-	req = withUserID(req, "real-driver-6")
+	req = withDriverUserID(req, "real-driver-6")
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -315,25 +316,25 @@ func TestDriverIDNeverFromBody(t *testing.T) {
 
 // --- service-level tests ---
 
-func TestUpdateRating_OutOfRange(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
+func TestDriverUpdateRating_OutOfRange(t *testing.T) {
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
 	ctx := context.Background()
 
-	if err := svc.UpdateRating(ctx, "any", 6.0); err != ErrBadRequest {
+	if err := svc.UpdateRating(ctx, "any", 6.0); err != driver.ErrBadRequest {
 		t.Errorf("expected ErrBadRequest for rating > 5, got %v", err)
 	}
-	if err := svc.UpdateRating(ctx, "any", -1.0); err != ErrBadRequest {
+	if err := svc.UpdateRating(ctx, "any", -1.0); err != driver.ErrBadRequest {
 		t.Errorf("expected ErrBadRequest for rating < 0, got %v", err)
 	}
 }
 
 func TestDriverInfo_NotFound(t *testing.T) {
-	store := newMockStore()
-	svc := NewService(store)
+	store := newMockDriverStore()
+	svc := driver.NewService(store)
 
 	_, err := svc.DriverInfo(context.Background(), "nonexistent")
-	if err != ErrNotFound {
+	if err != driver.ErrNotFound {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

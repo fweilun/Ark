@@ -136,7 +136,7 @@ func NewRouter(
 	api.DELETE("/api/me", userHandler.DeleteMe)
 
 	// driver profile & status (auth required; driver_id always from context)
-	driverHandler := driver.NewHandler(driverService)
+	driverHandler := handlers.NewDriverHandler(driverService)
 	api.POST("/api/driver/create", driverHandler.Create)
 	api.PATCH("/api/driver/status", driverHandler.UpdateStatus)
 

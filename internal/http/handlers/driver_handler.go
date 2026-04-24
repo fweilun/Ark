@@ -7,7 +7,7 @@
 //
 // Auth: The Auth middleware must set "user_id" in the request context before these handlers run.
 // Any request without a valid user_id in context is rejected with 401 Unauthorized.
-package driver
+package handlers
 
 import (
 	"net/http"
@@ -17,19 +17,20 @@ import (
 
 	"ark/internal/http/dto"
 	"ark/internal/httpx"
+	"ark/internal/modules/driver"
 )
 
-// Handler holds the driver HTTP handlers.
-type Handler struct {
-	svc *Service
+// DriverHandler holds the driver HTTP handlers.
+type DriverHandler struct {
+	svc *driver.Service
 }
 
-// NewHandler returns a Handler backed by the given Service.
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+// NewDriverHandler returns a DriverHandler backed by the given Service.
+func NewDriverHandler(svc *driver.Service) *DriverHandler {
+	return &DriverHandler{svc: svc}
 }
 
-type createReq struct {
+type driverCreateReq struct {
 	LicenseNumber string `json:"license_number" binding:"required"`
 }
 
@@ -43,14 +44,14 @@ type createReq struct {
 // @Accept       json
 // @Produce      json
 // @Security     FirebaseAuth
-// @Param        body  body      createReq           true  "License info"
+// @Param        body  body      driverCreateReq     true  "License info"
 // @Success      201   {object}  dto.DriverResponse
 // @Failure      400   {object}  httpx.ErrorBody
 // @Failure      401   {object}  httpx.ErrorBody
 // @Failure      409   {object}  httpx.ErrorBody
 // @Router       /api/driver/create [post]
-func (h *Handler) Create(c *gin.Context) {
-	var req createReq
+func (h *DriverHandler) Create(c *gin.Context) {
+	var req driverCreateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
@@ -70,12 +71,12 @@ func (h *Handler) Create(c *gin.Context) {
 	})
 }
 
-type updateStatusReq struct {
+type driverUpdateStatusReq struct {
 	Status string `json:"status" binding:"required,oneof=available on_trip offline"`
 }
 
-// updateStatusResponse mirrors the legacy {"status": "<new>"} acknowledgement.
-type updateStatusResponse struct {
+// driverUpdateStatusResponse mirrors the legacy {"status": "<new>"} acknowledgement.
+type driverUpdateStatusResponse struct {
 	Status string `json:"status"`
 }
 
@@ -89,14 +90,14 @@ type updateStatusResponse struct {
 // @Accept       json
 // @Produce      json
 // @Security     FirebaseAuth
-// @Param        body  body      updateStatusReq       true  "New status"
-// @Success      200   {object}  updateStatusResponse
+// @Param        body  body      driverUpdateStatusReq       true  "New status"
+// @Success      200   {object}  driverUpdateStatusResponse
 // @Failure      400   {object}  httpx.ErrorBody
 // @Failure      401   {object}  httpx.ErrorBody
 // @Failure      404   {object}  httpx.ErrorBody
 // @Router       /api/driver/status [patch]
-func (h *Handler) UpdateStatus(c *gin.Context) {
-	var req updateStatusReq
+func (h *DriverHandler) UpdateStatus(c *gin.Context) {
+	var req driverUpdateStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 		return
@@ -106,22 +107,18 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		writeDriverError(c, err)
 		return
 	}
-	writeJSON(c, http.StatusOK, updateStatusResponse{Status: req.Status})
-}
-
-func writeJSON(c *gin.Context, status int, v any) {
-	c.JSON(status, v)
+	writeJSON(c, http.StatusOK, driverUpdateStatusResponse{Status: req.Status})
 }
 
 func writeDriverError(c *gin.Context, err error) {
 	switch err {
-	case ErrForbidden:
+	case driver.ErrForbidden:
 		httpx.RespondError(c, http.StatusUnauthorized, "authentication required")
-	case ErrBadRequest:
+	case driver.ErrBadRequest:
 		httpx.RespondError(c, http.StatusBadRequest, err.Error())
-	case ErrNotFound:
+	case driver.ErrNotFound:
 		httpx.RespondError(c, http.StatusNotFound, err.Error())
-	case ErrConflict:
+	case driver.ErrConflict:
 		httpx.RespondError(c, http.StatusConflict, err.Error())
 	default:
 		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
