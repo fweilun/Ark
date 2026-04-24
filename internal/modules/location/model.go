@@ -2,32 +2,8 @@
 package location
 
 import (
-	"time"
-
 	"ark/internal/types"
 )
-
-// ---------------------------------------------------------------------------
-// Persistent models
-// ---------------------------------------------------------------------------
-
-type Snapshot struct {
-	ID         int64
-	UserID     types.ID
-	UserType   string
-	Position   types.Point
-	RecordedAt time.Time
-}
-
-// ---------------------------------------------------------------------------
-// Request / command types
-// ---------------------------------------------------------------------------
-
-type Update struct {
-	UserID   types.ID
-	UserType string
-	Position types.Point
-}
 
 // ---------------------------------------------------------------------------
 // Public result types
