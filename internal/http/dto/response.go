@@ -90,6 +90,29 @@ type RideAssistantResponse struct {
 	Booking *RideAssistantBooking `json:"booking,omitempty"`
 }
 
+// NearbyDriverResponse is returned by the location presence endpoints when
+// the caller is asking about drivers. DistanceKm is the great-circle distance
+// (in kilometres) from the query origin to the driver as reported by Redis
+// GEOSEARCH; it is zero for endpoints that do not take a query origin (e.g.
+// GET /api/location/drivers returns every online driver with DistanceKm=0).
+type NearbyDriverResponse struct {
+	DriverID   string  `json:"driver_id"`
+	Lat        float64 `json:"lat"`
+	Lng        float64 `json:"lng"`
+	DistanceKm float64 `json:"distance_km"`
+}
+
+// NearbyPassengerResponse is returned by GET /api/location/passengers/nearby.
+// Status mirrors the passenger's RTDB status (currently always
+// "looking_for_ride" since the poller only indexes active passengers).
+type NearbyPassengerResponse struct {
+	PassengerID string  `json:"passenger_id"`
+	Lat         float64 `json:"lat"`
+	Lng         float64 `json:"lng"`
+	DistanceKm  float64 `json:"distance_km"`
+	Status      string  `json:"status"`
+}
+
 // HealthResponse is returned by GET /health.
 type HealthResponse struct {
 	Status  string `json:"status"`

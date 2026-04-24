@@ -154,6 +154,12 @@ func NewRouter(
 	api.DELETE("/api/relations/friends/:friend_id", relationHandler.RemoveFriend)
 	api.GET("/api/relations/friends/:friend_id/is", relationHandler.IsFriend)
 
+	// location presence queries (read-only, backed by Redis GEO + RTDB poller)
+	locationHandler := handlers.NewLocationHandler(locationService)
+	api.GET("/api/location/drivers", locationHandler.ListAllDrivers)
+	api.GET("/api/location/drivers/nearby", locationHandler.ListNearbyDrivers)
+	api.GET("/api/location/passengers/nearby", locationHandler.ListNearbyPassengers)
+
 	// ride assistant
 	if rideAssistantSvc != nil {
 		raHandler := handlers.NewRideAssistantHandler(rideAssistantSvc)
