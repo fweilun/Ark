@@ -3,8 +3,6 @@ package relation
 
 import (
 	"context"
-
-	"ark/internal/http/middleware"
 )
 
 // Service orchestrates friendship request and management operations.
@@ -130,11 +128,3 @@ func (s *Service) IsFriend(ctx context.Context, uid1, uid2 UserID) (bool, error)
 	return true, nil
 }
 
-// userIDFromCtx extracts the authenticated user's ID from the Go request context.
-func userIDFromCtx(ctx context.Context) (UserID, bool) {
-	id, ok := middleware.UserIDFromContext(ctx)
-	if !ok || id == "" {
-		return "", false
-	}
-	return UserID(id), true
-}

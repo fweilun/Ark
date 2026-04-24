@@ -1,0 +1,1888 @@
+basePath: /
+definitions:
+  dto.AIChatResponse:
+    properties:
+      reply:
+        type: string
+    type: object
+  dto.CalendarEventResponse:
+    properties:
+      event_id:
+        type: string
+    type: object
+  dto.CalendarScheduleResponse:
+    properties:
+      event_id:
+        type: string
+      tied_order:
+        type: string
+      uid:
+        type: string
+    type: object
+  dto.DriverResponse:
+    properties:
+      driver_id:
+        type: string
+      license_number:
+        type: string
+      onboarded_at:
+        type: string
+      rating:
+        type: number
+      status:
+        type: string
+    type: object
+  dto.HealthResponse:
+    properties:
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  dto.NearbyDriverResponse:
+    properties:
+      distance_km:
+        type: number
+      driver_id:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
+    type: object
+  dto.NearbyPassengerResponse:
+    properties:
+      distance_km:
+        type: number
+      lat:
+        type: number
+      lng:
+        type: number
+      passenger_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.OrderResponse:
+    properties:
+      late_cancel:
+        type: boolean
+      order_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.OrderStatusResponse:
+    properties:
+      driver_id:
+        type: string
+      order_id:
+        type: string
+      status:
+        type: string
+      status_version:
+        type: integer
+    type: object
+  dto.RideAssistantBooking:
+    properties:
+      order_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.RideAssistantResponse:
+    properties:
+      booking:
+        $ref: '#/definitions/dto.RideAssistantBooking'
+      reply:
+        type: string
+      session:
+        $ref: '#/definitions/dto.RideAssistantSession'
+      status:
+        type: string
+    type: object
+  dto.RideAssistantSession:
+    properties:
+      id:
+        type: string
+      known_fields:
+        additionalProperties:
+          type: string
+        type: object
+      missing_fields:
+        items:
+          type: string
+        type: array
+      stage:
+        type: string
+    type: object
+  dto.ScheduledOrderSummary:
+    properties:
+      accepted_at:
+        type: string
+      actual_fee:
+        $ref: '#/definitions/types.Money'
+      assigned_at:
+        type: string
+      cancel_deadline_at:
+        type: string
+      cancel_reason:
+        type: string
+      cancelled_at:
+        type: string
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      driver_id:
+        type: string
+      dropoff:
+        $ref: '#/definitions/types.Point'
+      estimated_fee:
+        $ref: '#/definitions/types.Money'
+      id:
+        type: string
+      incentive_bonus:
+        type: integer
+      matched_at:
+        type: string
+      order_type:
+        type: string
+      passenger_id:
+        type: string
+      pickup:
+        $ref: '#/definitions/types.Point'
+      ride_type:
+        type: string
+      schedule_window_mins:
+        type: integer
+      scheduled_at:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      status_version:
+        type: integer
+    type: object
+  dto.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      user_id:
+        type: string
+      user_type:
+        type: string
+    type: object
+  handlers.aiChatReq:
+    properties:
+      message:
+        type: string
+      uid:
+        type: string
+    required:
+    - message
+    - uid
+    type: object
+  handlers.createAndTieOrderReq:
+    properties:
+      dropoff_lat:
+        type: number
+      dropoff_lng:
+        type: number
+      event_id:
+        type: string
+      pickup_lat:
+        type: number
+      pickup_lng:
+        type: number
+      ride_type:
+        type: string
+    required:
+    - event_id
+    - ride_type
+    type: object
+  handlers.createEventReq:
+    properties:
+      description:
+        type: string
+      from:
+        description: RFC3339
+        type: string
+      title:
+        type: string
+      to:
+        description: RFC3339
+        type: string
+    required:
+    - from
+    - title
+    - to
+    type: object
+  handlers.createOrderReq:
+    properties:
+      dropoff_lat:
+        type: number
+      dropoff_lng:
+        type: number
+      pickup_lat:
+        type: number
+      pickup_lng:
+        type: number
+      ride_type:
+        type: string
+    required:
+    - ride_type
+    type: object
+  handlers.createScheduledReq:
+    properties:
+      dropoff_lat:
+        type: number
+      dropoff_lng:
+        type: number
+      pickup_lat:
+        type: number
+      pickup_lng:
+        type: number
+      ride_type:
+        type: string
+      schedule_window_mins:
+        type: integer
+      scheduled_at:
+        description: RFC3339
+        type: string
+    required:
+    - ride_type
+    - schedule_window_mins
+    - scheduled_at
+    type: object
+  handlers.createUserReq:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      user_type:
+        type: string
+    required:
+    - email
+    - name
+    - user_type
+    type: object
+  handlers.driverCancelReq:
+    properties:
+      reason:
+        type: string
+    type: object
+  handlers.driverCreateReq:
+    properties:
+      license_number:
+        type: string
+    required:
+    - license_number
+    type: object
+  handlers.driverUpdateStatusReq:
+    properties:
+      status:
+        enum:
+        - available
+        - on_trip
+        - offline
+        type: string
+    required:
+    - status
+    type: object
+  handlers.driverUpdateStatusResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  handlers.editEventReq:
+    properties:
+      description:
+        type: string
+      from:
+        description: RFC3339
+        type: string
+      title:
+        type: string
+      to:
+        description: RFC3339
+        type: string
+    required:
+    - from
+    - title
+    - to
+    type: object
+  handlers.ensureDeviceReq:
+    properties:
+      device_id:
+        type: string
+      fcm_token:
+        type: string
+      platform:
+        enum:
+        - ios
+        - android
+        - web
+        type: string
+    required:
+    - fcm_token
+    - platform
+    type: object
+  handlers.ensureDeviceResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  handlers.relationSendRequestByPhoneReq:
+    properties:
+      telephone:
+        type: string
+    required:
+    - telephone
+    type: object
+  handlers.relationSendRequestReq:
+    properties:
+      to_user_id:
+        type: string
+    required:
+    - to_user_id
+    type: object
+  handlers.rideAssistantReq:
+    properties:
+      context_info:
+        type: string
+      message:
+        type: string
+      session_id:
+        type: string
+    required:
+    - message
+    type: object
+  handlers.scheduledOrdersResponse:
+    properties:
+      orders:
+        items:
+          $ref: '#/definitions/dto.ScheduledOrderSummary'
+        type: array
+    type: object
+  handlers.schedulesListResponse:
+    properties:
+      schedules:
+        items:
+          $ref: '#/definitions/dto.CalendarScheduleResponse'
+        type: array
+    type: object
+  handlers.updateUserNameReq:
+    properties:
+      name:
+        type: string
+    required:
+    - name
+    type: object
+  http.readyzDetailResponse:
+    properties:
+      detail:
+        type: string
+      status:
+        type: string
+    type: object
+  http.readyzOKResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  httpx.ErrorBody:
+    properties:
+      error:
+        type: string
+    type: object
+  types.Money:
+    properties:
+      amount:
+        description: |-
+          Amount is measured in TWD minor units (cents, i.e. 1/100 TWD).
+          Must be non-negative. Use int64 to avoid floating-point drift.
+        format: int64
+        type: integer
+      currency:
+        description: |-
+          Currency is the ISO-4217 currency code. The project is TWD-only for now,
+          but the field is kept so non-TWD support can be added without a schema change.
+        type: string
+    type: object
+  types.Point:
+    properties:
+      lat:
+        format: float64
+        type: number
+      lng:
+        format: float64
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: ZooArk Team
+  description: 'ZooArk 叫車平台後端 API。除了 POST /api/users、GET /health 和 GET /readyz 之外，所有
+    endpoint 都需要 Firebase Auth ID Token（`Authorization: Bearer <token>`）。金額欄位以 TWD
+    分（1/100 元）為單位。'
+  title: ZooArk API
+  version: 0.1.0
+paths:
+  /api/ai/chat:
+    post:
+      consumes:
+      - application/json
+      description: Sends a message to the Gemini-backed chat service on behalf of
+        `uid`. Requests are rate-limited by the shared token budget; 429 is returned
+        when the caller has exhausted their quota.
+      parameters:
+      - description: User id and message
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.aiChatReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AIChatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: AI chat (Gemini, token-metered)
+      tags:
+      - AI
+  /api/assistant/ride/messages:
+    post:
+      consumes:
+      - application/json
+      description: Sends a user message to the ride-assistant state machine. The assistant
+        responds with a reply, optionally a session snapshot for follow-up turns,
+        and optionally a booking block once a ride has been committed.
+      parameters:
+      - description: Assistant message payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.rideAssistantReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RideAssistantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Ride-assistant turn
+      tags:
+      - AI
+  /api/calendar/events:
+    post:
+      consumes:
+      - application/json
+      description: Creates a calendar event for the authenticated user. `from`/`to`
+        must be RFC3339 timestamps.
+      parameters:
+      - description: Event from/to/title/description
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createEventReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CalendarEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Create calendar event
+      tags:
+      - Calendar
+  /api/calendar/events/{id}:
+    delete:
+      description: Removes the calendar event (and any ride schedule tied to it).
+        Returns 204 on success.
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Delete calendar event
+      tags:
+      - Calendar
+    put:
+      consumes:
+      - application/json
+      description: Replaces the stored calendar event with the supplied fields. Same
+        validation rules as CreateEvent.
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated event fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.editEventReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CalendarEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Edit calendar event
+      tags:
+      - Calendar
+  /api/calendar/schedules:
+    get:
+      description: Returns every calendar-backed ride schedule the authenticated user
+        owns, flattened into the `schedules` array.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.schedulesListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List schedules for current user
+      tags:
+      - Calendar
+    post:
+      consumes:
+      - application/json
+      description: Creates a scheduled ride order whose pickup window is derived from
+        the referenced calendar event, and ties the two together so cancelling/deleting
+        the event also untethers the order.
+      parameters:
+      - description: Event id + ride pickup/dropoff
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createAndTieOrderReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CalendarScheduleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Tie a ride order to a calendar event
+      tags:
+      - Calendar
+  /api/calendar/schedules/{event_id}/order:
+    delete:
+      description: Breaks the tie between a calendar event and its associated scheduled
+        order. The event stays; the order is cancelled.
+      parameters:
+      - description: Calendar event ID
+        in: path
+        name: event_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Untie ride order from calendar event
+      tags:
+      - Calendar
+  /api/driver/create:
+    post:
+      consumes:
+      - application/json
+      description: Creates the driver profile for the authenticated user (driver_id
+        always comes from the Firebase token, never from the body). Starts the driver
+        in status "available".
+      parameters:
+      - description: License info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.driverCreateReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.DriverResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Create driver profile
+      tags:
+      - Driver
+  /api/driver/status:
+    patch:
+      consumes:
+      - application/json
+      description: Changes the authenticated driver's status to one of available,
+        on_trip, offline. Returns the new status echoed back.
+      parameters:
+      - description: New status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.driverUpdateStatusReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.driverUpdateStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Update driver status
+      tags:
+      - Driver
+  /api/location/drivers:
+    get:
+      description: Returns every driver currently reporting an online position via
+        the RTDB-backed poller. DistanceKm is always 0 because no query origin is
+        supplied; use GET /api/location/drivers/nearby when you need distances.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyDriverResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List all online drivers
+      tags:
+      - Location
+  /api/location/drivers/nearby:
+    get:
+      description: Returns online drivers within `radius_km` of (`lat`, `lng`), sorted
+        by distance ascending. Presence is sourced from the Redis GEO index populated
+        by the RTDB poller; drivers whose status TTL has expired are filtered out.
+      parameters:
+      - description: Query origin latitude
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Query origin longitude
+        in: query
+        name: lng
+        required: true
+        type: number
+      - description: Search radius in kilometres (must be > 0)
+        in: query
+        name: radius_km
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyDriverResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List nearby drivers
+      tags:
+      - Location
+  /api/location/passengers/nearby:
+    get:
+      description: Returns passengers currently looking for a ride within `radius_km`
+        of (`lat`, `lng`), sorted by distance ascending. Sourced from the Redis GEO
+        index populated by the RTDB poller.
+      parameters:
+      - description: Query origin latitude
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Query origin longitude
+        in: query
+        name: lng
+        required: true
+        type: number
+      - description: Search radius in kilometres (must be > 0)
+        in: query
+        name: radius_km
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.NearbyPassengerResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List nearby passengers
+      tags:
+      - Location
+  /api/me:
+    delete:
+      description: Hard-deletes the authenticated user's profile. There is no soft-delete
+        today, so the row is removed immediately.
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Delete current user
+      tags:
+      - Auth & User
+    get:
+      description: Returns the profile of the user identified by the Firebase ID Token
+        in the Authorization header.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Get current user
+      tags:
+      - Auth & User
+    patch:
+      consumes:
+      - application/json
+      description: Patches the display name of the currently authenticated user. Only
+        the name field is editable today.
+      parameters:
+      - description: Updated name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateUserNameReq'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Update current user name
+      tags:
+      - Auth & User
+  /api/notifications/register:
+    post:
+      consumes:
+      - application/json
+      description: Registers (or refreshes) an FCM device token for the authenticated
+        user so push notifications can be delivered. Idempotent — re-registering the
+        same token updates the row.
+      parameters:
+      - description: FCM token, platform, optional device_id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ensureDeviceReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ensureDeviceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Register FCM device
+      tags:
+      - Notification
+  /api/orders:
+    post:
+      consumes:
+      - application/json
+      description: Creates an on-demand (immediate) ride order for the authenticated
+        passenger and enters the waiting queue.
+      parameters:
+      - description: Pickup/dropoff and ride type
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createOrderReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Create instant order
+      tags:
+      - Order
+  /api/orders/{id}/accept:
+    post:
+      description: Driver accepts a ride offer; transitions the order to `approaching`.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Accept order (driver)
+      tags:
+      - Order
+  /api/orders/{id}/arrived:
+    post:
+      description: Driver signals arrival at the pickup location. Transitions the
+        order from `approaching` to `arrived`.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Driver arrived at pickup
+      tags:
+      - Order
+  /api/orders/{id}/cancel:
+    post:
+      description: Cancels the order as the passenger. For scheduled orders past the
+        free-cancel deadline, `late_cancel:true` is returned so the client can warn
+        the user that a penalty may apply.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Cancel order (passenger)
+      tags:
+      - Order
+  /api/orders/{id}/claim:
+    post:
+      description: Driver claims a `scheduled` order; transitions it to `assigned`
+        and binds the driver_id until the driver departs or cancels.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Claim scheduled order (driver)
+      tags:
+      - Order
+  /api/orders/{id}/complete:
+    post:
+      description: Driver signals dropoff is complete; transitions the order from
+        `driving` to `payment` so the passenger can settle the fare.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Trip complete (enter payment)
+      tags:
+      - Order
+  /api/orders/{id}/deny:
+    post:
+      description: Driver declines the ride offer. The order is returned to the `waiting`
+        queue for re-matching.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Deny order (driver)
+      tags:
+      - Order
+  /api/orders/{id}/driver-cancel:
+    post:
+      consumes:
+      - application/json
+      description: Driver releases a previously-claimed `assigned` scheduled order
+        back to `scheduled` so another driver can pick it up. Optional `reason` is
+        recorded on the order history.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Optional reason string
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.driverCancelReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Release claimed scheduled order (driver)
+      tags:
+      - Order
+  /api/orders/{id}/match:
+    post:
+      description: Temporary MVP endpoint that atomically matches an order in `waiting`
+        with the authenticated driver and transitions it to `approaching`. Will be
+        replaced by the dispatcher.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Match order to driver (MVP)
+      tags:
+      - Order
+  /api/orders/{id}/meet:
+    post:
+      description: Passenger has boarded; transitions the order from `arrived` to
+        `driving` and the trip begins.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Passenger boarded
+      tags:
+      - Order
+  /api/orders/{id}/pay:
+    post:
+      description: Temporary MVP endpoint that marks the order as paid and transitions
+        it from `payment` to `complete`. Will be replaced by the real payment flow.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Pay for trip (MVP)
+      tags:
+      - Order
+  /api/orders/{id}/status:
+    get:
+      description: Returns the current status, optimistic-lock version, and assigned
+        driver_id (if any) for a single order.
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Get order status
+      tags:
+      - Order
+  /api/orders/scheduled:
+    get:
+      description: Returns every scheduled order owned by the authenticated passenger,
+        projected through ScheduledOrderSummary.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.scheduledOrdersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List my scheduled orders
+      tags:
+      - Order
+    post:
+      consumes:
+      - application/json
+      description: Creates a scheduled (future) ride. The driver pool is surfaced
+        via the available-scheduled endpoint; drivers claim it within the schedule
+        window.
+      parameters:
+      - description: Pickup/dropoff, ride_type, RFC3339 scheduled_at and schedule_window_mins
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createScheduledReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Create scheduled order
+      tags:
+      - Order
+  /api/orders/scheduled/available:
+    get:
+      description: Returns scheduled orders within [from,to] that have not yet been
+        claimed by a driver. Both `from` and `to` must be RFC3339 timestamps and `from`
+        must be strictly before `to`.
+      parameters:
+      - description: RFC3339 window start (inclusive)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: RFC3339 window end (exclusive)
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.scheduledOrdersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List claimable scheduled orders
+      tags:
+      - Order
+  /api/relations/friends:
+    get:
+      description: Returns the authenticated user's accepted friends.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List accepted friends
+      tags:
+      - Relation
+  /api/relations/friends/{friend_id}:
+    delete:
+      description: Breaks the friendship between the authenticated user and `friend_id`
+        (symmetric).
+      parameters:
+      - description: Friend user id
+        in: path
+        name: friend_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Remove friend
+      tags:
+      - Relation
+  /api/relations/friends/{friend_id}/is:
+    get:
+      description: 'Returns whether `friend_id` is an accepted friend of the authenticated
+        user. Response shape: `{"is_friend": true|false}`.'
+      parameters:
+      - description: Candidate user id
+        in: path
+        name: friend_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Check friendship
+      tags:
+      - Relation
+  /api/relations/requests:
+    post:
+      consumes:
+      - application/json
+      description: Sends a friend request from the authenticated user to the user
+        identified by `to_user_id`.
+      parameters:
+      - description: Target user id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.relationSendRequestReq'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Send friend request
+      tags:
+      - Relation
+  /api/relations/requests/{friend_id}:
+    delete:
+      description: Revokes a pending friend request the authenticated user previously
+        sent to `friend_id`.
+      parameters:
+      - description: Target user id
+        in: path
+        name: friend_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Cancel outgoing friend request
+      tags:
+      - Relation
+  /api/relations/requests/{friend_id}/accept:
+    post:
+      description: Accepts a pending friend request from `friend_id`. Both users become
+        mutual friends.
+      parameters:
+      - description: Requester user id
+        in: path
+        name: friend_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Accept friend request
+      tags:
+      - Relation
+  /api/relations/requests/{friend_id}/reject:
+    post:
+      description: Rejects a pending friend request from `friend_id`.
+      parameters:
+      - description: Requester user id
+        in: path
+        name: friend_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Reject friend request
+      tags:
+      - Relation
+  /api/relations/requests/by-phone:
+    post:
+      consumes:
+      - application/json
+      description: Looks up a user by their registered phone number and sends a friend
+        request from the authenticated user.
+      parameters:
+      - description: Target telephone
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.relationSendRequestByPhoneReq'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Send friend request by phone
+      tags:
+      - Relation
+  /api/relations/requests/received:
+    get:
+      description: Returns pending friend requests the authenticated user has received.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List received friend requests
+      tags:
+      - Relation
+  /api/relations/requests/sent:
+    get:
+      description: Returns pending friend requests the authenticated user has sent.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: List sent friend requests
+      tags:
+      - Relation
+  /api/relations/search:
+    get:
+      description: Free-text user search by name or phone number. Returns a flat JSON
+        array of matching user summaries.
+      parameters:
+      - description: Search query (name or phone)
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Search users
+      tags:
+      - Relation
+  /api/users:
+    post:
+      consumes:
+      - application/json
+      description: Creates the backend user row for a freshly signed-up Firebase account.
+        The caller MUST send a valid Firebase ID Token — the server uses the verified
+        UID from that token as the user_id, so subsequent calls (e.g. GET /api/me)
+        resolve to the same row.
+      parameters:
+      - description: New user payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createUserReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpx.ErrorBody'
+      security:
+      - FirebaseAuth: []
+      summary: Create user profile
+      tags:
+      - Auth & User
+  /health:
+    get:
+      description: Returns {status:"ok", version:"<api version>"}. Never touches downstream
+        dependencies so the probe stays cheap.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+      summary: Liveness probe
+      tags:
+      - Health
+  /readyz:
+    get:
+      description: 'Pings Postgres and Redis with a 2s timeout; returns 200 {status:"ok"}
+        when both are healthy, 503 {status:"degraded", detail:"<component>: <error>"}
+        on any failure.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.readyzOKResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/http.readyzDetailResponse'
+      summary: Readiness probe
+      tags:
+      - Health
+schemes:
+- http
+- https
+securityDefinitions:
+  FirebaseAuth:
+    description: Firebase ID Token, formatted as `Bearer <token>`.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

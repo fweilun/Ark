@@ -4,7 +4,6 @@ package location
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -218,10 +217,3 @@ func (s *Store) FetchActiveUsersFromRTDB(ctx context.Context, userType string) (
 	return entries, nil
 }
 
-// ---------------------------------------------------------------------------
-// Postgres
-// ---------------------------------------------------------------------------
-
-func (s *Store) AppendSnapshot(ctx context.Context, snap Snapshot) error {
-	return errors.New("not implemented")
-}

@@ -53,16 +53,6 @@ func (s *Service) syncRTDBToRedis(ctx context.Context) {
 	}
 }
 
-func (s *Service) FlushSnapshot(ctx context.Context, u Update) error {
-	snap := Snapshot{
-		UserID:     u.UserID,
-		UserType:   u.UserType,
-		Position:   u.Position,
-		RecordedAt: time.Now(),
-	}
-	return s.store.AppendSnapshot(ctx, snap)
-}
-
 // GetNearbyDrivers returns online drivers within radiusKm of (lat, lng),
 // sorted by distance ascending. Presence is determined by the Redis status TTL.
 func (s *Service) GetNearbyDrivers(ctx context.Context, lat, lng, radiusKm float64) ([]DriverLocation, error) {

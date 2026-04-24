@@ -11,8 +11,10 @@ import (
 	"time"
 
 	firebase "firebase.google.com/go/v4"
+	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
 
+	"ark/docs"
 	"ark/internal/config"
 	httptransport "ark/internal/http"
 	"ark/internal/http/middleware"
@@ -33,10 +35,38 @@ import (
 	"ark/internal/worker"
 )
 
+// @title           ZooArk API
+// @version         0.1.0
+// @description     ZooArk 叫車平台後端 API。除了 POST /api/users、GET /health 和 GET /readyz 之外，所有 endpoint 都需要 Firebase Auth ID Token（`Authorization: Bearer <token>`）。金額欄位以 TWD 分（1/100 元）為單位。
+// @contact.name    ZooArk Team
+// @host            localhost:8080
+// @BasePath        /
+// @schemes         http https
+// @securityDefinitions.apikey FirebaseAuth
+// @in                         header
+// @name                       Authorization
+// @description                Firebase ID Token, formatted as `Bearer <token>`.
 func main() {
+	// Auto-load .env so `go run ./cmd/ark-api` just works locally.
+	// A missing .env is normal in production (real env vars come from the
+	// deploy system), so we swallow os.IsNotExist silently. Any other error
+	// is surfaced as a warning but does NOT abort startup.
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: failed to load .env: %v", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Swagger host is read at request time from docs.SwaggerInfo.Host. Default
+	// to localhost:8080 for local dev; PUBLIC_HOST should be set in deployed
+	// environments (e.g. "api.zooark.example.com").
+	if publicHost := os.Getenv("PUBLIC_HOST"); publicHost != "" {
+		docs.SwaggerInfo.Host = publicHost
+	} else {
+		docs.SwaggerInfo.Host = "localhost:8080"
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

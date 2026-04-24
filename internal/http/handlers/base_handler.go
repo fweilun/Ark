@@ -6,12 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ark/internal/httpx"
 	"ark/internal/modules/order"
 )
-
-type errorResponse struct {
-	Error string `json:"error"`
-}
 
 // isValidID ensures IDs contain only alphanumeric characters, hyphens, and
 // underscores (compatible with both internal hex IDs and Firebase UIDs).
@@ -32,19 +29,15 @@ func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
 }
 
-func writeError(c *gin.Context, status int, msg string) {
-	writeJSON(c, status, errorResponse{Error: msg})
-}
-
 func writeOrderError(c *gin.Context, err error) {
 	switch err {
 	case order.ErrBadRequest:
-		writeError(c, http.StatusBadRequest, err.Error())
+		httpx.RespondError(c, http.StatusBadRequest, err.Error())
 	case order.ErrNotFound:
-		writeError(c, http.StatusNotFound, err.Error())
+		httpx.RespondError(c, http.StatusNotFound, err.Error())
 	case order.ErrInvalidState, order.ErrActiveOrder, order.ErrConflict:
-		writeError(c, http.StatusConflict, err.Error())
+		httpx.RespondError(c, http.StatusConflict, err.Error())
 	default:
-		writeError(c, http.StatusInternalServerError, "internal error")
+		httpx.RespondError(c, http.StatusInternalServerError, "internal error")
 	}
 }
