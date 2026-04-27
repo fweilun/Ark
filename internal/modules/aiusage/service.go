@@ -4,71 +4,118 @@ import (
 	"context"
 	"fmt"
 
+	"ark/internal/modules/planner"
+
 	"github.com/google/generative-ai-go/genai"
 )
 
-// Service orchestrates AI token-usage logic.
-type Service struct {
-	store  *Store
-	client *genai.Client
-	model  *genai.GenerativeModel
+// Service is the public interface for the aiusage business logic.
+type Service interface {
+	// UseToken deducts one token from the user's monthly allowance.
+	UseToken(ctx context.Context, uid string) error
+
+	// Chat deducts one token and generates a plain text AI reply.
+	Chat(ctx context.Context, uid, message string) (string, error)
+
+	// ParseIntent deducts one token and calls the AI to interpret the user's message.
+	ParseIntent(ctx context.Context, uid, message string, contextMap map[string]string) (*IntentResult, error)
+
+	// Close releases underlying AI client resources.
+	Close()
 }
 
-// NewService creates a Service backed by the given Store.
-// If geminiKey is non-empty, a long-lived Gemini client is initialized immediately.
-// Call Close() to release Gemini client resources when the Service is no longer needed.
-func NewService(store *Store, geminiKey string) (*Service, error) {
-	svc := &Service{store: store}
-	if geminiKey == "" {
-		return svc, nil
+// OrderService defines the subset of order operations the AI secretary needs.
+// Declared here to avoid an import cycle with the order package.
+type OrderService interface {
+	GetOrder(ctx context.Context, id string) (interface{}, error)
+	CancelOrder(ctx context.Context, id, actorType, reason string) error
+}
+
+// aiusageService is the private implementation of Service.
+type aiusageService struct {
+	store          *Store
+	aiClient       AIClient
+	plannerService planner.Service
+	orderService   OrderService
+
+	// Legacy plain-text chat path.
+	chatModel *genai.GenerativeModel
+	rawClient *genai.Client
+}
+
+// ServiceConfig holds all dependencies for constructing an aiusageService.
+type ServiceConfig struct {
+	Store          *Store
+	AIClient       AIClient
+	PlannerService planner.Service
+	OrderService   OrderService
+	// GeminiKey enables the legacy Chat() plain-text path. Leave empty to disable.
+	GeminiKey string
+}
+
+// NewService constructs the Service with all dependencies injected.
+func NewService(cfg ServiceConfig) (Service, error) {
+	svc := &aiusageService{
+		store:          cfg.Store,
+		aiClient:       cfg.AIClient,
+		plannerService: cfg.PlannerService,
+		orderService:   cfg.OrderService,
 	}
-	client, model, err := newGeminiModel(context.Background(), geminiKey)
-	if err != nil {
-		return nil, err
+	if cfg.GeminiKey != "" {
+		c, m, err := newGeminiModel(context.Background(), cfg.GeminiKey)
+		if err != nil {
+			return nil, err
+		}
+		svc.rawClient = c
+		svc.chatModel = m
 	}
-	svc.client = client
-	svc.model = model
 	return svc, nil
 }
 
-// Close releases the long-lived Gemini client resources.
-func (s *Service) Close() {
-	if s.client != nil {
-		s.client.Close()
+// Close releases AI client and raw Gemini resources.
+func (s *aiusageService) Close() {
+	if s.aiClient != nil {
+		s.aiClient.Close()
+	}
+	if s.rawClient != nil {
+		s.rawClient.Close()
 	}
 }
 
 // UseToken deducts one token from the user's monthly allowance.
-// If the user row does not exist yet it is initialised and the token is immediately consumed.
-// Returns ErrInsufficientTokens when the quota for the current month is exhausted.
-func (s *Service) UseToken(ctx context.Context, uid string) error {
+func (s *aiusageService) UseToken(ctx context.Context, uid string) error {
 	err := s.store.UseToken(ctx, uid)
 	if err != ErrInsufficientTokens {
 		return err
 	}
-
-	// RowsAffected == 0: row missing OR quota exhausted.
-	// Only retry if a new row was actually inserted (missing-row case).
 	created, initErr := s.store.EnsureUser(ctx, uid)
 	if initErr != nil {
 		return initErr
 	}
 	if !created {
-		// User exists but quota is exhausted for this month.
 		return ErrInsufficientTokens
 	}
 	return s.store.UseToken(ctx, uid)
 }
 
-// Chat deducts one token from uid's monthly quota and calls Gemini with the given message.
-// Returns ErrInsufficientTokens if the quota is exhausted before making the API call.
-// Returns an error if the Gemini client was not initialized (empty geminiKey at construction).
-func (s *Service) Chat(ctx context.Context, uid, message string) (string, error) {
-	if s.model == nil {
-		return "", fmt.Errorf("gemini: client not initialized (empty api key)")
+// Chat deducts one token and returns a plain-text Gemini reply.
+func (s *aiusageService) Chat(ctx context.Context, uid, message string) (string, error) {
+	if s.chatModel == nil {
+		return "", fmt.Errorf("gemini: chat client not initialized (empty api key)")
 	}
 	if err := s.UseToken(ctx, uid); err != nil {
 		return "", err
 	}
-	return generateText(ctx, s.model, message)
+	return generateText(ctx, s.chatModel, message)
+}
+
+// ParseIntent deducts one token and calls the AI to interpret the user's message.
+func (s *aiusageService) ParseIntent(ctx context.Context, uid, message string, contextMap map[string]string) (*IntentResult, error) {
+	if s.aiClient == nil {
+		return nil, fmt.Errorf("aiusage: AI client not initialized")
+	}
+	if err := s.UseToken(ctx, uid); err != nil {
+		return nil, err
+	}
+	return s.aiClient.ParseUserIntent(ctx, message, contextMap)
 }
