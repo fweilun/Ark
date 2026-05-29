@@ -27,7 +27,7 @@ type ServerDeps struct {
 	Matching     *matching.Service
 	Location     *location.Service
 	Pricing      *pricing.Service
-	AI           *aiusage.Service
+	AI           aiusage.Service
 	Notification *notification.Service
 	Calendar     *calendar.Service
 	Driver       *driver.Service

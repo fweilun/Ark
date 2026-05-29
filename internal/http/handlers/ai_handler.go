@@ -16,10 +16,10 @@ import (
 )
 
 type AIHandler struct {
-	ai *aiusage.Service
+	ai aiusage.Service
 }
 
-func NewAIHandler(aiSvc *aiusage.Service) *AIHandler {
+func NewAIHandler(aiSvc aiusage.Service) *AIHandler {
 	return &AIHandler{ai: aiSvc}
 }
 
